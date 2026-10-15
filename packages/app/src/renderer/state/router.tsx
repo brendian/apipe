@@ -15,8 +15,11 @@ export type Route =
   | { name: 'welcome' }
   | { name: 'runs' }
   | { name: 'new-run'; item: string | null }
-  | { name: 'run'; id: string }
+  | { name: 'run'; id: string; notice: string | null }
   | { name: 'run-context'; id: string }
+  | { name: 'run-decide'; id: string; choice: string }
+  | { name: 'run-clean'; id: string }
+  | { name: 'clean-all' }
   | { name: 'items'; notice: string | null }
   | { name: 'item-new'; folder: string }
   | { name: 'item-edit'; path: string; notice: string | null }
@@ -29,7 +32,7 @@ export type Route =
 export function parseRoute(path: string): Route {
   const [pathname = '', query = ''] = path.split('?');
   const parts = pathname.split('/').filter(Boolean);
-  const [a, b, c] = parts;
+  const [a, b, c, d] = parts;
   if (parts.length === 0 || (a === 'runs' && parts.length === 1)) return { name: 'runs' };
   if (a === 'boot' && parts.length === 1) return { name: 'boot' };
   if (a === 'welcome' && parts.length === 1) return { name: 'welcome' };
@@ -48,9 +51,15 @@ export function parseRoute(path: string): Route {
   if (a === 'runs' && b === 'new' && parts.length === 2) {
     return { name: 'new-run', item: q.get('item') };
   }
-  if (a === 'runs' && b && parts.length === 2) return { name: 'run', id: b };
+  if (a === 'clean-up' && parts.length === 1) return { name: 'clean-all' };
+  if (a === 'runs' && b && parts.length === 2)
+    return { name: 'run', id: b, notice: q.get('notice') };
   if (a === 'runs' && b && c === 'context' && parts.length === 3)
     return { name: 'run-context', id: b };
+  if (a === 'runs' && b && c === 'clean' && parts.length === 3) return { name: 'run-clean', id: b };
+  if (a === 'runs' && b && c === 'decide' && d && parts.length === 4) {
+    return { name: 'run-decide', id: b, choice: d };
+  }
   return { name: 'not-found', path: pathname };
 }
 

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { STATUSES, levelText, type RunDetail } from '@advpipe/contracts';
+import { NOTICES, STATUSES, isNoticeKey, levelText, type RunDetail } from '@advpipe/contracts';
+import { AnswerForm } from '../components/AnswerForm.js';
+import { DecisionPanel } from '../components/DecisionPanel.js';
+import { FindingCard } from '../components/FindingCard.js';
+import { RunActions } from '../components/RunActions.js';
 import { Callout } from '../components/Callout.js';
 import { CommandBox } from '../components/CommandBox.js';
 import { CostMeter } from '../components/CostMeter.js';
-import { DecisionSummary } from '../components/DecisionSummary.js';
 import { EmptyState } from '../components/EmptyState.js';
 import { LogPanel } from '../components/LogPanel.js';
 import { Markdown } from '../components/Markdown.js';
@@ -16,7 +19,7 @@ import { useRemote } from '../state/remote.js';
 import { Link } from '../state/router.js';
 
 /** A run's Progress page (docs/05 §5.2). */
-export function RunPage({ runId }: { runId: string }) {
+export function RunPage({ runId, notice = null }: { runId: string; notice?: string | null }) {
   const api = useApi();
   const { state } = useRemote(() => api.runs.detail({ runId }), [api, runId], {
     'run.changed': (p) => p.runId === runId,
@@ -71,6 +74,7 @@ export function RunPage({ runId }: { runId: string }) {
       runId={runId}
       detail={detail}
       refreshError={state.status === 'error' ? state.error : null}
+      notice={notice}
       back={back}
     />
   );
@@ -80,11 +84,13 @@ function Detail({
   runId,
   detail: d,
   refreshError,
+  notice,
   back,
 }: {
   runId: string;
   detail: RunDetail;
   refreshError: string | null;
+  notice: string | null;
   back: React.ReactNode;
 }) {
   const r = d.row;
@@ -107,6 +113,7 @@ function Detail({
       {refreshError ? (
         <Callout tone="warn">Couldn't refresh this page: {refreshError}</Callout>
       ) : null}
+      {isNoticeKey(notice) ? <Callout tone="info">{NOTICES[notice]}</Callout> : null}
       <p>{info.help}</p>
       <dl className="facts">
         <div>
@@ -150,12 +157,43 @@ function Detail({
           </div>
         ) : null}
       </dl>
-      {d.decision_view ? <DecisionSummary view={d.decision_view} /> : null}
-      {d.decision_view || r.status === 'needs_answers' ? (
-        <Callout tone="info">
-          The buttons to answer, choose, resume and cancel arrive in the next build. Until then this
-          page shows what the run is waiting for.
+      {d.bypass_on ? (
+        <Callout tone="warn">
+          Bypass is on for this run: the agent answers blocking questions itself, without asking
+          you. Its answers are marked in <code>task.md</code> and the report.
         </Callout>
+      ) : null}
+      {d.actions.length > 0 || d.worktree_kept ? <RunActions runId={runId} detail={d} /> : null}
+      {d.decision_view ? <DecisionPanel runId={runId} detail={d} /> : null}
+      {r.status === 'needs_answers' && d.questions.length > 0 ? (
+        <AnswerForm runId={runId} detail={d} />
+      ) : null}
+      {r.status === 'handed_over' ? (
+        <Callout tone="info">
+          Handed over: the branch <span className="mono">{r.branch}</span> has the work as it was.
+          Check the branch out and finish it by hand.
+        </Callout>
+      ) : null}
+      {r.status === 'ended' ? (
+        <Callout tone="info">Stopped at your choice; nothing was written to the branch.</Callout>
+      ) : null}
+      {r.status === 'finished' ? (
+        <Callout tone="info">
+          Finished as is: the work so far is in the run's working copy, uncommitted. Use Open
+          working copy to look at it, and Clean up… when you're done (it asks before deleting
+          anything).
+        </Callout>
+      ) : null}
+      {!d.live &&
+      d.decision_view === null &&
+      r.status !== 'needs_answers' &&
+      d.open_findings.length > 0 ? (
+        <section className="callout" aria-labelledby="open-h">
+          <h2 id="open-h">What's left open</h2>
+          {d.open_findings.map((f) => (
+            <FindingCard key={f.id} finding={f} />
+          ))}
+        </section>
       ) : null}
       <Timeline runId={runId} steps={d.timeline} />
       <LogPanel runId={runId} live={d.live} />

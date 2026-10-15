@@ -229,7 +229,7 @@ export function NewRun({ item }: { item: string | null }) {
       budget_shown: current.budget_text,
     });
     setBusy(false);
-    if (r.ok) return navigate(`/runs/${r.value.runId}`);
+    if (r.ok) return navigate(`/runs/${r.value.runId}?notice=started`);
     setError(r.error);
     setRefresh((n) => n + 1); // look again: the settings may be what changed
   }

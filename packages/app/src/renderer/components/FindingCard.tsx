@@ -1,5 +1,10 @@
 import type { Finding } from '@advpipe/contracts';
 
+// Gate output a person reads may carry terminal colour codes; they would show as garbage.
+// eslint-disable-next-line no-control-regex -- the escape character is the point
+const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g;
+const plain = (text: string): string => text.replace(ANSI, '');
+
 /** One finding: severity, category, where, what and the evidence. All text, never HTML. */
 export function FindingCard({ finding: f }: { finding: Finding }) {
   const where = f.file ? (f.line !== null ? `${f.file}:${f.line}` : f.file) : '';
@@ -18,7 +23,7 @@ export function FindingCard({ finding: f }: { finding: Finding }) {
       <p className="claim">{f.claim}</p>
       {f.evidence ? (
         <p>
-          <strong>Evidence:</strong> {f.evidence}
+          <strong>Evidence:</strong> {plain(f.evidence)}
         </p>
       ) : null}
       {f.suggested_check ? (

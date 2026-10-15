@@ -39,6 +39,9 @@ export function Runs() {
           <button type="button" className="btn btn-primary" onClick={() => navigate('/runs/new')}>
             New run
           </button>
+          <button type="button" className="btn" onClick={() => navigate('/clean-up')}>
+            Clean up…
+          </button>
         </div>
       </div>
       <UsageLine />

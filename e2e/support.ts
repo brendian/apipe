@@ -32,7 +32,14 @@ export async function launch(
   const userData = scratch();
   const app = await electron.launch({
     args: [appDir, ...(repo ? [repo] : [])],
-    env: { ...process.env, ADVPIPE_E2E: '1', ADVPIPE_USER_DATA: userData, ...env },
+    // Workers are always the scripted fake, whatever else a test sets (never a real agent).
+    env: {
+      ...process.env,
+      ADVPIPE_E2E: '1',
+      ADVPIPE_USER_DATA: userData,
+      ADVPIPE_WORKER_ENTRY: workerEntry,
+      ...env,
+    },
   });
   const page = await app.firstWindow();
   const problems: string[] = [];

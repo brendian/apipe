@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import {
   Prefs,
   type AdvpipeApi,
+  type CleanInfoView,
   type DraftChecks,
   type DraftView,
   type ItemList,
@@ -64,6 +65,12 @@ export const detailOf = (over: Partial<RunDetail> = {}): RunDetail => ({
   report_html: null,
   next_steps: [],
   decision_view: null,
+  actions: [],
+  suggested_budget: 30,
+  questions: [],
+  asker: 'spec writer',
+  bypass_on: false,
+  open_findings: [],
   ...over,
 });
 
@@ -215,6 +222,19 @@ export const planOf = (over: Partial<RunPlan> = {}): RunPlan => ({
   ...over,
 });
 
+export const cleanInfoOf = (over: Partial<CleanInfoView> = {}): CleanInfoView => ({
+  run_id: '20261015-100000-aaaaaa',
+  title: 'Add clamp',
+  status: 'stopped',
+  refusal: null,
+  worktree: '/home/me/proj/.advpipe/worktrees/20261015-100000-aaaaaa',
+  branch: 'advpipe/add-clamp',
+  unmerged_commits: 0,
+  dirty_finished: false,
+  base: 'abcdef123456',
+  ...over,
+});
+
 export type Stub = {
   api: AdvpipeApi;
   emit: <C extends PushChannel>(channel: C, payload: PushPayloads[C]) => void;
@@ -241,6 +261,8 @@ export function makeApi(
     /** Replacements for the work-items and new-run channels, by namespace. */
     items?: Record<string, unknown>;
     newrun?: Record<string, unknown>;
+    /** Replacements for the action channels (`run.cancel`, `run.answer`, …). */
+    run?: Record<string, unknown>;
   } = {},
 ): Stub {
   const listeners = new Map<string, Set<(p: unknown) => void>>();
@@ -288,6 +310,17 @@ export function makeApi(
       plan: async () => ok(planOf()),
       start: async () => ok({ runId: '20261015-100000-abcdef' }),
       ...over.newrun,
+    },
+    run: {
+      cancel: async () => ok({ runId: '20261015-100000-aaaaaa' }),
+      resume: async () => ok({ runId: '20261015-100000-aaaaaa' }),
+      answer: async () => ok({ runId: '20261015-100000-aaaaaa' }),
+      decide: async () => ok({ runId: '20261015-100000-aaaaaa', resumed: true }),
+      cleanInfo: async () => ok(cleanInfoOf()),
+      clean: async () => ok({ lines: [] }),
+      reveal: async () => ok({ ok: true }),
+      openLink: async () => ok({ ok: true }),
+      ...over.run,
     },
     on: (channel: string, cb: (p: unknown) => void) => {
       const set = listeners.get(channel) ?? new Set();

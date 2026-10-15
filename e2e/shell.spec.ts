@@ -29,7 +29,7 @@ test('the window is hardened: no Node, named bridge only, CSP enforced, clean co
     expect(surface).toEqual({
       require: 'undefined',
       process: 'undefined',
-      bridge: ['app', 'items', 'newrun', 'on', 'runs', 'usage'],
+      bridge: ['app', 'items', 'newrun', 'on', 'run', 'runs', 'usage'],
       appMethods: ['preflight', 'prefs', 'repo', 'window'],
     });
 

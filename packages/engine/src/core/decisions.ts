@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
   DECISION_CHOICES,
+  MAX_NOTE_CHARS,
   pyRepr,
   type Decision,
   type DecisionKind,
@@ -19,7 +20,7 @@ import { branchExists, Workspace } from './workspace.js';
 // `stop` and `finish` end the run at once; the other choices are applied when the run resumes, with
 // the worktree kept as it was (`Workspace.reopen({ keepChanges: true })`).
 
-export const MAX_NOTE_CHARS = 8_000;
+export { MAX_NOTE_CHARS };
 export const HANDED_OVER_COMMIT = 'advpipe: work in progress, handed over (checks failing)';
 
 /** A decision that can't be recorded; the message is meant for the person deciding. */

@@ -976,6 +976,7 @@ other word stays verbatim. The places (grep the Python for `advpipe ` inside str
 | `report.md` Decisions, open decision | "(waiting for you: advpipe decide <id> a \| b)" | "(waiting for you: choose on the run's page)" |
 | `clean` refusals | "stop it first: advpipe cancel X" / "Pass --force to delete them anyway." | "cancel it first" / "Tick *Delete anyway* to delete them." |
 | Console warning | "…change it with --budget" (several runs: "…change each with --budget") | "…change it when you resume the run" (several runs: "…change each when you resume the run"; New run shows the budget from the config) |
+| UI refusals wrapping a CLI message (`routes/actions.py`) | "advpipe couldn't cancel it: …", "advpipe couldn't resume it: …", "advpipe refused: …" | "Couldn't cancel it: …", "Couldn't resume it: …", "Not sent: …" (decide), "Not saved: …" (answer); clean shows the engine's message as it is |
 | `status` / summary lines | CLI-only | not produced (the worker prints only a one-line final summary to `console.log`) |
 
 Machine-readable fields (`choices`, `decision_kind`, ids, statuses) are unchanged. Anything that parses

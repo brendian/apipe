@@ -261,12 +261,12 @@ text, never HTML).
 | `items.deleteInfo` / `items.delete` | `{rel}` / `{rel, confirm: true}` | what git still has (`DeleteInfo`) / `{deleted}` |
 | `newrun.plan` | `RunForm` | `RunPlan` (summary shown in the dialog) |
 | `newrun.start` | `RunForm & {shown: string, budget_shown: string}` | `{runId}` (refused if what was *shown* is not what is computed now, or the repo isn't ready: no git, no first commit) |
-| `run.cancel` | `{runId}` | – |
+| `run.cancel` | `{runId}` | `{runId}` |
 | `run.resume` | `{runId, budget?}` | `{runId}` |
 | `run.answer` | `{runId, answers, bypass, bypassAll?}` | `{runId}` (records, then spawns resume) |
-| `run.decide` | `{runId, choice, note?, confirm?}` | `{runId?}`; `takeover`/`stop`/`finish` need `confirm: true` |
-| `run.clean.info` / `run.clean` | `{runId}` / `{runId, force, logs, confirm:true}` | `CleanInfo` / lines |
-| `run.reveal` | `{runId, what: 'worktree'\|'runDir'}` | opens in the OS file manager (`shell.showItemInFolder`) — main resolves the path from run state and checks it's under `.advpipe/` |
+| `run.decide` | `{runId, choice, note?, confirm?}` | `{runId, resumed}`; `takeover`/`stop`/`finish` need `confirm: true` |
+| `run.cleanInfo` / `run.clean` | `{runId}` / `{runId, force, logs, confirm:true}` | `CleanInfoView` / `{lines}` (*built M10; named `cleanInfo`, not `clean.info`: a name can't be both a function and a namespace on the bridge*) |
+| `run.reveal` | `{runId, what: 'worktree'\|'runDir'\|'report'}` | opens in the OS file manager (`shell.showItemInFolder`) — main resolves the path from run state and checks it's under `.advpipe/` |
 | `run.openLink` | `{key: 'add_usage'\|'add_credits'}` | main maps the key to one of two **constant** URLs and calls `shell.openExternal`; the renderer can never supply a URL |
 | `run.copy` | – | none: copy buttons use `navigator.clipboard` in the renderer |
 
@@ -279,6 +279,7 @@ text, never HTML).
 | `run.log` | `{runId, lines: EventLine[], next_offset, ended}` | new complete lines in `events.jsonl` for a subscribed run |
 | `usage.changed` | `{}` | `usage.json` changed |
 | `app.menu` | `{action}` | native menu → UI navigation (e.g. "New run", "Preferences") |
+| `app.openRun` | `{runId}` | a desktop notification was clicked (M10): open that run |
 
 ### 5.3 The preload bridge
 

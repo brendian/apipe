@@ -12,7 +12,10 @@ export const WORKER = path.resolve(import.meta.dirname, '../../dist/src/worker-f
 
 export const scratch = (): string => mkdtempSync(path.join(tmpdir(), 'advpipe-proc-'));
 
-export type JsonStep = string | { writes: Record<string, string>; reply?: string };
+export type JsonStep =
+  | string
+  | { writes: Record<string, string>; reply?: string }
+  | { limit: { billing?: boolean; files?: Record<string, string> } };
 export type JsonScript = {
   scripts: Partial<Record<string, JsonStep[]>>;
   hold?: { role: string; until: string; ignore_cancel?: boolean };

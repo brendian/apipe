@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACTIONS } from './actions.js';
 import { Config } from './config.js';
 import { EventLine } from './events.js';
 import { Finding, Ruling } from './findings.js';
@@ -243,6 +244,18 @@ export const RunDetail = z.strictObject({
   report_html: z.string().nullable(),
   next_steps: z.array(NextStep),
   decision_view: DecisionViewS.nullable(),
+  /** The actions valid for this status (docs/05 §7); the host checks again on every call. */
+  actions: z.array(z.enum(ACTIONS)),
+  /** A bigger total budget to offer a run that ran out. */
+  suggested_budget: z.number().int(),
+  /** The blocking questions the answer form asks (empty unless the run needs answers). */
+  questions: z.array(OpenQuestion),
+  /** Who asked them: "spec writer", or "solo agent" at Basic and Reviewer. */
+  asker: z.enum(['spec writer', 'solo agent']),
+  /** Bypass is on for this run: the agent answers blocking questions itself. */
+  bypass_on: z.boolean(),
+  /** What a plain "needs you" stop left open. */
+  open_findings: z.array(Finding),
 });
 export type RunDetail = z.infer<typeof RunDetail>;
 

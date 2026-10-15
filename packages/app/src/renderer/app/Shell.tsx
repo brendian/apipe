@@ -13,7 +13,11 @@ export function titleOf(route: Route): string {
       return 'New run';
     case 'run':
     case 'run-context':
+    case 'run-decide':
+    case 'run-clean':
       return 'Run';
+    case 'clean-all':
+      return 'Clean up runs';
     case 'items':
     case 'item-new':
     case 'item-edit':
@@ -73,6 +77,12 @@ export function Shell({
     [api, navigate, setTheme],
   );
 
+  // A clicked desktop notification opens its run.
+  useEffect(
+    () => api.on('app.openRun', ({ runId }) => navigate(`/runs/${runId}`)),
+    [api, navigate],
+  );
+
   // ⌘/Ctrl+[ and ⌘/Ctrl+] are Back and Forward.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -85,7 +95,10 @@ export function Shell({
   }, [back, forward]);
 
   const current = (name: string): 'page' | undefined =>
-    (name === 'runs' && ['runs', 'run', 'run-context', 'new-run'].includes(route.name)) ||
+    (name === 'runs' &&
+      ['runs', 'run', 'run-context', 'run-decide', 'run-clean', 'clean-all', 'new-run'].includes(
+        route.name,
+      )) ||
     (name === 'items' && route.name.startsWith('item')) ||
     (name === 'help' && route.name === 'help')
       ? 'page'

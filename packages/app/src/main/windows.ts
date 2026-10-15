@@ -1,15 +1,21 @@
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { BrowserWindow, dialog } from 'electron';
-import type { PushChannel, PushPayloads } from '@advpipe/contracts';
-import { tailEvents } from '@advpipe/engine';
+import { app, BrowserWindow, dialog, Notification } from 'electron';
+import { STATUSES, type PushChannel, type PushPayloads } from '@advpipe/contracts';
+import { loadRuns, tailEvents } from '@advpipe/engine';
+import { StatusTracker } from './notify.js';
 import { LogSubscriptions } from './logsub.js';
 import { UserError } from './ipc.js';
 import type { PrefsStore } from './prefs.js';
 import { isDirectory } from './repo.js';
 import { watchRepo } from './watch.js';
 
-type Entry = { win: BrowserWindow; repo: string | null; stopWatching: (() => void) | null };
+type Entry = {
+  win: BrowserWindow;
+  repo: string | null;
+  stopWatching: (() => void) | null;
+  badge: number;
+};
 
 export type WindowsOptions = {
   prefs: PrefsStore;
@@ -121,12 +127,40 @@ export class Windows {
 
   private watch(win: BrowserWindow, repo: string): () => void {
     const id = win.webContents.id;
+    const tracker = new StatusTracker();
+    this.announce(win, repo, tracker); // learns where the runs are now, so nothing old is announced
     const watcher = watchRepo(repo, (channel, payload) => {
       if (win.isDestroyed()) return;
       win.webContents.send(channel, payload);
       if (channel === 'run.changed') this.logs.poke(id, (payload as { runId: string }).runId);
+      if (channel === 'runs.changed') this.announce(win, repo, tracker);
     });
     return () => watcher.close();
+  }
+
+  /** Desktop notifications for runs that now need the person or finished, and the badge count. */
+  private announce(win: BrowserWindow, repo: string, tracker: StatusTracker): void {
+    let rows;
+    try {
+      rows = loadRuns(repo, 'all').rows;
+    } catch {
+      return;
+    }
+    const { notes, badge } = tracker.update(rows);
+    const entry = this.entries.get(win.webContents.id);
+    if (entry) entry.badge = badge;
+    app.setBadgeCount([...this.entries.values()].reduce((sum, e) => sum + e.badge, 0));
+    if (!this.o.prefs.get().notifications || win.isFocused() || !Notification.isSupported()) return;
+    for (const note of notes) {
+      const n = new Notification({ title: note.title, body: STATUSES[note.status].label });
+      n.on('click', () => {
+        this.focus(win);
+        if (!win.isDestroyed()) {
+          win.webContents.send('app.openRun' satisfies PushChannel, { runId: note.runId });
+        }
+      });
+      n.show();
+    }
   }
 
   private create(repo: string | null): void {
@@ -156,7 +190,7 @@ export class Windows {
     });
     if (saved?.maximized) win.maximize();
     const id = win.webContents.id;
-    const entry: Entry = { win, repo, stopWatching: null };
+    const entry: Entry = { win, repo, stopWatching: null, badge: 0 };
     this.entries.set(id, entry);
     if (repo !== null) entry.stopWatching = this.watch(win, repo);
 

@@ -3,6 +3,9 @@ import path from 'node:path';
 import {
   ArbiterRuling,
   CHOICE_VIEWS,
+  VALID,
+  specStage,
+  suggestedBudget,
   COMMIT_KEYS,
   DECISION_CHOICES,
   Config,
@@ -31,7 +34,13 @@ import {
   type StepState,
   type StepViewData,
 } from '@advpipe/contracts';
-import { answersReady, awaitingAnswers, migrate, pendingQuestions } from '../core/answers.js';
+import {
+  answersReady,
+  awaitingAnswers,
+  migrate,
+  pendingQuestions,
+  toAnswer,
+} from '../core/answers.js';
 import { awaitingDecision, decisionReady, maxFixPasses } from '../core/decisions.js';
 import { checkRunId, RunLog } from '../core/runlog.js';
 import { parseModel } from '../stages/calls.js';
@@ -671,5 +680,11 @@ export function loadDetail(repo: string, runId: string): RunDetail | Starting | 
     next_steps: nextSteps(state, row.status, repo),
     decision_view:
       row.status === 'needs_decision' || row.status === 'paused' ? decisionView(state, log) : null,
+    actions: [...VALID[row.status]],
+    suggested_budget: suggestedBudget(state.cost_usd, config?.limits.budget_usd_per_task ?? null),
+    questions: row.status === 'needs_answers' ? toAnswer(migrate(state)) : [],
+    asker: specStage(state).stage === 'SOLO' ? 'solo agent' : 'spec writer',
+    bypass_on: state.bypass_questions,
+    open_findings: state.open_findings,
   };
 }

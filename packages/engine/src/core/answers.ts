@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import {
   ANSWERS_SECTION_RE,
+  MAX_ANSWER_CHARS,
+  MAX_TOTAL_ANSWER_CHARS,
   OpenQuestion,
   QUESTION_ID_RE,
   specStage,
@@ -16,8 +18,8 @@ import { branchExists } from './workspace.js';
 // them. The orchestrator writes the answers into task.md itself (`withAnswersSection`), so later
 // agents see them verbatim. Everything that asks "is this run waiting on answers?" uses this file.
 
-export const MAX_ANSWER_CHARS = 8_000;
-export const MAX_TOTAL_ANSWER_CHARS = 24_000;
+// The answer limits live in `contracts` (the form shows them); re-exported for the engine's users.
+export { MAX_ANSWER_CHARS, MAX_TOTAL_ANSWER_CHARS };
 export const MAX_REASONING_CHARS = 2_000;
 export const ANSWERS_HEADING = '## Answers';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Prefs, SETTINGS_CHANGED, type Preflight, type PrefsView } from '@advpipe/contracts';
-import { ItemPathError, NewRunError } from '@advpipe/engine';
+import { ActionError, ItemPathError, NewRunError } from '@advpipe/engine';
 import {
   createHandlers,
   dispatch,
@@ -61,7 +61,15 @@ function setup() {
       deleteItem: vi.fn(),
       planRun: vi.fn(),
       startNewRun: vi.fn(async () => ({ runId: '20261015-100000-abcdef' })),
+      cancelAction: vi.fn((_repo: string, runId: string) => ({ runId })),
+      resumeAction: vi.fn(async (_repo: string, runId: string) => ({ runId })),
+      answerAction: vi.fn(async (_repo: string, runId: string) => ({ runId })),
+      decideAction: vi.fn(async (_repo: string, runId: string) => ({ runId, resumed: true })),
+      cleanInfoAction: vi.fn(),
+      cleanAction: vi.fn(async () => ['removed worktree']),
+      revealPath: vi.fn(() => '/home/me/proj/.advpipe/runs/r1'),
     },
+    shell: { showItemInFolder: vi.fn(), openExternal: vi.fn(async () => undefined) },
     logs: { subscribe: vi.fn(), unsubscribe: vi.fn() },
     windows: { pick: vi.fn(async () => true), open: vi.fn(async () => true) },
     exists: () => true,
@@ -130,6 +138,24 @@ describe('IPC handlers', () => {
       ['newrun.plan', { repo: '/etc' }],
       ['newrun.start', { source: 'task', task: 'x' }], // nothing was shown
       ['newrun.start', { shown: 'full;on;ask;ask', budget_shown: '15.00', config_path: '/etc/x' }],
+      ['run.cancel', { runId: '../x' }],
+      ['run.cancel', { runId: 'r1', repo: '/etc' }],
+      ['run.resume', { runId: 'r1', budget: 'x'.repeat(41) }],
+      ['run.answer', { runId: 'r1', answers: { 'Q1; rm -rf': 'x' }, bypass: [] }],
+      ['run.answer', { runId: 'r1', answers: {}, bypass: ['everything'] }],
+      ['run.answer', { runId: 'r1', answers: { Q1: 'x'.repeat(100_001) }, bypass: [] }],
+      ['run.answer', { runId: 'r1', answers: { Q1: 'x' } }], // no bypass list
+      ['run.decide', { runId: 'r1', choice: 'x'.repeat(21) }],
+      ['run.decide', { runId: 'r1', choice: 'fix', note: 'x'.repeat(16_001) }],
+      ['run.decide', { runId: 'r1', choice: 'takeover', confirm: 'yes' }],
+      ['run.cleanInfo', { runId: 'a/b' }],
+      ['run.clean', { runId: 'r1', force: false, logs: false }], // no confirm
+      ['run.clean', { runId: 'r1', force: false, logs: false, confirm: false }],
+      ['run.clean', { runId: 'r1', force: 'yes', logs: false, confirm: true }],
+      ['run.reveal', { runId: 'r1', what: '/etc' }], // a window can't name a path
+      ['run.reveal', { runId: 'r1', what: 'worktree', path: '/etc' }],
+      ['run.openLink', { key: 'https://evil.example/' }], // a window can't name a URL
+      ['run.openLink', { key: 'add_usage', url: 'https://evil.example/' }],
       ['app.nope', {}],
       ['constructor', {}],
     ];
@@ -146,6 +172,8 @@ describe('IPC handlers', () => {
     expect(deps.engine.loadUsage).not.toHaveBeenCalled();
     expect(deps.windows.pick).not.toHaveBeenCalled();
     expect(deps.windows.open).not.toHaveBeenCalled();
+    expect(deps.shell.showItemInFolder).not.toHaveBeenCalled();
+    expect(deps.shell.openExternal).not.toHaveBeenCalled();
     expect(deps.prefs.update).not.toHaveBeenCalled();
     for (const fn of Object.values(deps.engine).filter((f) => 'mock' in f)) {
       // Everything above that was a spy and is not one of the earlier checked ones stayed quiet.
@@ -313,6 +341,63 @@ describe('IPC handlers', () => {
       error: 'This folder isn’t a git repo.',
     });
     expect(deps.engine.startNewRun).not.toHaveBeenCalled();
+  });
+
+  it('run actions: the window’s repo, the engine’s refusals as plain text, the two fixed links', async () => {
+    const { deps, handlers } = setup();
+    await call(handlers, 'run.cancel', { runId: 'r1' });
+    expect(deps.engine.cancelAction).toHaveBeenCalledWith(REPO, 'r1');
+    await call(handlers, 'run.resume', { runId: 'r1', budget: '20' });
+    expect(deps.engine.resumeAction).toHaveBeenCalledWith(REPO, 'r1', '20');
+    await call(handlers, 'run.answer', {
+      runId: 'r1',
+      answers: { Q1: 'Throw.' },
+      bypass: ['Q2'],
+    });
+    expect(deps.engine.answerAction).toHaveBeenCalledWith(REPO, 'r1', {
+      answers: { Q1: 'Throw.' },
+      bypass: ['Q2'],
+    });
+    await call(handlers, 'run.decide', { runId: 'r1', choice: 'takeover', confirm: true });
+    expect(deps.engine.decideAction).toHaveBeenCalledWith(REPO, 'r1', {
+      choice: 'takeover',
+      confirm: true,
+    });
+    expect(
+      await call(handlers, 'run.clean', { runId: 'r1', force: true, logs: false, confirm: true }),
+    ).toEqual({ ok: true, value: { lines: ['removed worktree'] } });
+    expect(deps.engine.cleanAction).toHaveBeenCalledWith(REPO, 'r1', { force: true, logs: false });
+
+    deps.engine.cancelAction.mockImplementationOnce(() => {
+      throw new ActionError("This run changed since you looked (it's now complete). Reload.");
+    });
+    expect(await call(handlers, 'run.cancel', { runId: 'r1' })).toEqual({
+      ok: false,
+      error: "This run changed since you looked (it's now complete). Reload.",
+    });
+    expect(await call(handlers, 'run.cancel', { runId: 'r1' }, welcome)).toMatchObject({
+      ok: false,
+    });
+
+    // The file manager shows what the engine derived; the window never names a path.
+    await call(handlers, 'run.reveal', { runId: 'r1', what: 'runDir' });
+    expect(deps.engine.revealPath).toHaveBeenCalledWith(REPO, 'r1', 'runDir');
+    expect(deps.shell.showItemInFolder).toHaveBeenCalledWith('/home/me/proj/.advpipe/runs/r1');
+    deps.engine.revealPath.mockImplementationOnce(() => {
+      throw new ActionError("That isn't inside .advpipe/; not opening it.");
+    });
+    expect(await call(handlers, 'run.reveal', { runId: 'r1', what: 'worktree' })).toMatchObject({
+      ok: false,
+    });
+    expect(deps.shell.showItemInFolder).toHaveBeenCalledTimes(1);
+
+    // Two keys, two constant URLs.
+    await call(handlers, 'run.openLink', { key: 'add_usage' });
+    await call(handlers, 'run.openLink', { key: 'add_credits' });
+    expect(deps.shell.openExternal.mock.calls).toEqual([
+      ['https://claude.ai/settings/usage'],
+      ['https://platform.claude.com/settings/billing'],
+    ]);
   });
 
   it('parses its own output: a handler cannot leak extra fields', async () => {

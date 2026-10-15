@@ -1,5 +1,7 @@
 import path from 'node:path';
 import {
+  ADD_CREDITS_URL,
+  ADD_USAGE_URL,
   IPC_TABLE,
   type FilterKey,
   type IpcChannel,
@@ -20,9 +22,10 @@ import {
   type ItemList,
   type RunForm,
   type RunPlan,
+  type CleanInfoView,
   WorkItemError,
 } from '@advpipe/contracts';
-import { ItemError, NewRunError } from '@advpipe/engine';
+import { ActionError, ItemError, NewRunError } from '@advpipe/engine';
 import { prefsView } from './prefs.js';
 
 /** Where a call came from: checked before a handler runs, resolved by main, never by the window. */
@@ -81,6 +84,32 @@ export interface Deps {
       shown: string,
       budgetShown: string,
     ): Promise<{ runId: string }>;
+    // Actions on a run: each checks the run's displayed status itself (docs/05 §7).
+    cancelAction(repo: string, runId: string): { runId: string };
+    resumeAction(repo: string, runId: string, budget: string): Promise<{ runId: string }>;
+    answerAction(
+      repo: string,
+      runId: string,
+      input: { answers: Record<string, string>; bypass: readonly string[]; bypassAll?: boolean },
+    ): Promise<{ runId: string }>;
+    decideAction(
+      repo: string,
+      runId: string,
+      input: { choice: string; note?: string; confirm?: boolean },
+    ): Promise<{ runId: string; resumed: boolean }>;
+    cleanInfoAction(repo: string, runId: string): Promise<CleanInfoView>;
+    cleanAction(
+      repo: string,
+      runId: string,
+      opts: { force: boolean; logs: boolean },
+    ): Promise<string[]>;
+    /** The path to show in the file manager; throws ActionError unless it is inside `.advpipe/`. */
+    revealPath(repo: string, runId: string, what: 'worktree' | 'runDir' | 'report'): string;
+  };
+  /** The two things the host does with the desktop: nothing else is reachable from a window. */
+  shell: {
+    showItemInFolder(path: string): void;
+    openExternal(url: string): Promise<void>;
   };
   logs: {
     subscribe(windowId: number, repo: string, runId: string, offset: number): void;
@@ -117,7 +146,12 @@ export function createHandlers(deps: Deps): Handlers {
     try {
       return await run();
     } catch (e) {
-      if (e instanceof ItemError || e instanceof NewRunError || e instanceof WorkItemError) {
+      if (
+        e instanceof ItemError ||
+        e instanceof NewRunError ||
+        e instanceof WorkItemError ||
+        e instanceof ActionError
+      ) {
         throw new UserError(e.message);
       }
       throw e;
@@ -212,6 +246,44 @@ export function createHandlers(deps: Deps): Handlers {
       return person(() =>
         deps.engine.startNewRun(repo, itemsDirOf(ctx), form, shown, budget_shown),
       );
+    },
+    'run.cancel': ({ runId }, ctx) =>
+      person(async () => deps.engine.cancelAction(need(ctx), runId)),
+    'run.resume': ({ runId, budget }, ctx) =>
+      person(() => deps.engine.resumeAction(need(ctx), runId, budget ?? '')),
+    'run.answer': ({ runId, answers, bypass, bypassAll }, ctx) =>
+      person(() =>
+        deps.engine.answerAction(need(ctx), runId, {
+          answers,
+          bypass,
+          ...(bypassAll === undefined ? {} : { bypassAll }),
+        }),
+      ),
+    'run.decide': ({ runId, choice, note, confirm }, ctx) =>
+      person(() =>
+        deps.engine.decideAction(need(ctx), runId, {
+          choice,
+          ...(note === undefined ? {} : { note }),
+          ...(confirm === undefined ? {} : { confirm }),
+        }),
+      ),
+    'run.cleanInfo': ({ runId }, ctx) =>
+      person(() => deps.engine.cleanInfoAction(need(ctx), runId)),
+    // `confirm: true` is in the input schema: only the confirmation page's button sends it.
+    'run.clean': async ({ runId, force, logs }, ctx) => ({
+      lines: await person(() => deps.engine.cleanAction(need(ctx), runId, { force, logs })),
+    }),
+    // The path comes from the run's state, checked to be inside `.advpipe/`; never from the window.
+    'run.reveal': async ({ runId, what }, ctx) => {
+      deps.shell.showItemInFolder(
+        await person(() => deps.engine.revealPath(need(ctx), runId, what)),
+      );
+      return { ok: true };
+    },
+    // The window names one of two keys; the URLs are constants here.
+    'run.openLink': async ({ key }) => {
+      await deps.shell.openExternal(key === 'add_usage' ? ADD_USAGE_URL : ADD_CREDITS_URL);
+      return { ok: true };
     },
   };
 }

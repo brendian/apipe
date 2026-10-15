@@ -1,11 +1,16 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, dialog, ipcMain, protocol, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from 'electron';
 import { IPC_TABLE } from '@advpipe/contracts';
 import {
+  answerAction,
+  cancelAction,
   checkDraft,
+  cleanAction,
+  cleanInfoAction,
   createItem,
+  decideAction,
   deleteItem,
   itemDeleteInfo,
   loadContext,
@@ -18,6 +23,8 @@ import {
   readDraft,
   renameItem,
   resolveItemsDir,
+  resumeAction,
+  revealPath,
   saveItem,
   startNewRun,
 } from '@advpipe/engine';
@@ -102,11 +109,12 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
     registerAppProtocol();
 
-    // The Playwright build points workers at the scripted fake-agent entry; a release never does.
-    const workerOptions =
-      e2e && process.env['ADVPIPE_WORKER_ENTRY']
-        ? { workerEntry: process.env['ADVPIPE_WORKER_ENTRY'] }
-        : {};
+    // The Playwright build points every worker at the scripted fake-agent entry. In that build a
+    // worker is never allowed to be the real one: without the entry nothing is started, so a test
+    // can't spend anything by forgetting to set it (docs/09 §1).
+    const workerOptions = e2e
+      ? { workerEntry: process.env['ADVPIPE_WORKER_ENTRY'] ?? join(userData, 'no-such-worker.js') }
+      : {};
     const handlers = createHandlers({
       prefs,
       engine: {
@@ -127,6 +135,21 @@ if (!app.requestSingleInstanceLock()) {
         planRun,
         startNewRun: (repo, itemsDir, form, shown, budgetShown) =>
           startNewRun(repo, itemsDir, form, shown, budgetShown, workerOptions),
+        cancelAction,
+        resumeAction: (repo, runId, budget) => resumeAction(repo, runId, budget, workerOptions),
+        answerAction: (repo, runId, input) => answerAction(repo, runId, input, workerOptions),
+        decideAction: (repo, runId, input) => decideAction(repo, runId, input, workerOptions),
+        cleanInfoAction,
+        cleanAction,
+        revealPath,
+      },
+      shell: {
+        showItemInFolder: (target) => shell.showItemInFolder(target),
+        // In the Playwright build the link is recorded, not opened (docs/09 §9, scenario 5).
+        openExternal: async (url) => {
+          if (e2e) log(`openExternal ${url}`);
+          else await shell.openExternal(url);
+        },
       },
       logs: windows.logs,
       windows,

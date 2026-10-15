@@ -214,7 +214,9 @@ byte-exact round trip), create/rename/delete with confirmation pages; items-dir 
 **Tests:** full traversal suite; round trips; `planRun` for every precedence combination and error;
 exact `start.json` contents per choice; refusal when what was shown differs; e2e scenario 7.
 
-## M10 · Actions and the "needs you" flows
+## M10 · Actions and the "needs you" flows  ✔ done 2026-10-15
+
+*(Built. Engine: `readmodel/actions.ts` holds the host-side actions (`cancelAction`, `resumeAction`, `answerAction`, `decideAction`, `cleanInfoAction`, `cleanAction`, `revealPath`), each re-checking the run's displayed status against `VALID` first and refusing a stale one with "This run changed since you looked (it's now <status>). Reload."; `VALID`, `allowed`, `parseBudget`, `suggestedBudget` and the notice texts are pure and live in `contracts/src/actions.ts`. Channels added: `run.cancel/resume/answer/decide/cleanInfo/clean/reveal/openLink` (`run.clean.info` of the first draft is `run.cleanInfo`: a channel name can't be both a function and a namespace on the bridge) and the push `app.openRun`. `RunDetail` gained `actions`, `suggested_budget`, `questions`, `asker`, `bypass_on`, `open_findings`. Pages: the action bar, the answer form, the decision panel (replacing M8's read-only summary), the take-over/stop/finish confirmation pages, the clean-up page and a bulk Clean up… page (`/clean-up`), notices after an action. The Cancel confirmation is a native `<dialog>`, not Radix: Radix Dialog injects a `<style>` tag, which the CSP (`style-src 'self'`) blocks. Desktop notifications and the dock badge are `app/main/notify.ts` (pure tracker) + `windows.ts`. Not built: the `usage.json`-only meters in the New run dialog are unchanged (M9).)*
 
 **Read:** 05 §5.2.2–§5.2.5, §5.7, §7, §5.9; 02 §11/§14; `ui/routes/actions.py`, `test_ui_decisions,
 test_ui_answers, test_ui_actions (actions)`.

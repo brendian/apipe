@@ -230,6 +230,8 @@ Drawn from the validity matrix (§7). Each shows only when valid and again re-ch
 | **Open working copy** | `run.reveal` (worktree) when it exists |
 | **Open report.md** / **Open run folder** | `run.reveal` |
 
+*(Built, M10.)* The action bar also has *Open working copy / Open report.md / Open run folder* (`run.reveal`: main derives the path from run state and refuses anything outside `.advpipe/`). *Cancel* asks in a native `<dialog>` (safe button first and focused). The refusals a person can see are the engine's own words, prefixed "Not saved:", "Not sent:", "Not resumed:", "Couldn't cancel it:" or "Couldn't resume it:" (the Python's "advpipe refused:" had no CLI to name); a stale action says "This run changed since you looked (it's now <status>). Reload." Notices after an action are fixed texts (`NOTICES` in contracts), chosen by a route key.
+
 #### 5.2.3 Cost and usage
 
 `$1.89 of $8.00` + a bar; the label under it depends on the login:
@@ -523,6 +525,8 @@ delete, never committed) · *Safety* (agents run shell commands with your permis
 nothing is pushed; your code goes to the Claude API) · *Open log folder*.
 
 ### 5.9 Notifications and the dock badge
+
+*(Built, M10: `app/main/notify.ts` tracks each run's status per window; a notification is made when a run moves to needs-you or complete, only if the window isn't focused and the preference is on; it shows the run's title and the status label. The badge is the count of runs in needs-you states across windows (it only shows where the OS supports one). Not verified by hand: the e2e build hides its windows. "Needs you" here is needs_human, needs_answers, needs_decision, paused, error and over budget, not `stopped`.)*
 
 If enabled in preferences (default **on**): a desktop notification when a watched run **needs you**
 (needs answers / decision / paused / error / over budget) or **completes**, coalesced (one per run per

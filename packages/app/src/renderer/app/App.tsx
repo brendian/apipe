@@ -3,6 +3,7 @@ import type { AdvpipeApi } from '@advpipe/contracts';
 import { ApiProvider, useApi } from '../state/api.js';
 import { useRemote } from '../state/remote.js';
 import { RouterProvider, useRouter } from '../state/router.js';
+import { DraftStateProvider } from '../state/drafts.js';
 import { PanelStateProvider } from '../state/panels.js';
 import { WindowProvider } from '../state/window.js';
 import { Callout } from '../components/Callout.js';
@@ -13,6 +14,7 @@ import { Items } from '../pages/Items.js';
 import { NewRun } from '../pages/NewRun.js';
 import { Placeholder } from '../pages/Placeholder.js';
 import { RunPage } from '../pages/RunPage.js';
+import { CleanAll, CleanConfirm, DecideConfirm } from '../pages/RunConfirm.js';
 import { Runs } from '../pages/Runs.js';
 import { Welcome } from '../pages/Welcome.js';
 import { Shell } from './Shell.js';
@@ -27,7 +29,13 @@ function Routes() {
     case 'runs':
       return <Runs />;
     case 'run':
-      return <RunPage runId={route.id} />;
+      return <RunPage runId={route.id} notice={route.notice} />;
+    case 'run-decide':
+      return <DecideConfirm runId={route.id} choice={route.choice} />;
+    case 'run-clean':
+      return <CleanConfirm runId={route.id} />;
+    case 'clean-all':
+      return <CleanAll />;
     case 'new-run':
       return <NewRun key={route.item ?? ''} item={route.item} />;
     case 'run-context':
@@ -75,7 +83,9 @@ function Ready() {
       <Boot hasRepo={repo !== null} />
       <Shell theme={prefs.state.value.theme}>
         <PanelStateProvider>
-          <Routes />
+          <DraftStateProvider>
+            <Routes />
+          </DraftStateProvider>
         </PanelStateProvider>
       </Shell>
     </WindowProvider>

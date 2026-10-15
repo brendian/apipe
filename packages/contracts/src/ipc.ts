@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { isValidRunId } from './primitives.js';
+import { CleanInfoView, LinkKey } from './actions.js';
+import { isValidRunId, QUESTION_ID_RE } from './primitives.js';
 import { ContextView, RunDetailOut, type LogPush } from './detail.js';
 import {
   DeleteInfo,
@@ -100,6 +101,54 @@ export const IPC_TABLE = {
   // New run (docs/05 §5.4): plan, then start only if what was shown is still what is computed.
   'newrun.plan': { input: RunForm, output: RunPlan },
   'newrun.start': { input: StartForm, output: z.strictObject({ runId: RunId }) },
+  // Actions on a run (docs/05 §5.2.2-§5.2.5, §5.7). The host checks every one against the run's
+  // displayed status (`VALID`) and refuses a stale one; the limits on answers and notes are the
+  // engine's, and its messages are shown as written, so the schema only bounds the size.
+  'run.cancel': {
+    input: z.strictObject({ runId: RunId }),
+    output: z.strictObject({ runId: RunId }),
+  },
+  'run.resume': {
+    input: z.strictObject({ runId: RunId, budget: z.string().max(40).optional() }),
+    output: z.strictObject({ runId: RunId }),
+  },
+  'run.answer': {
+    input: z.strictObject({
+      runId: RunId,
+      answers: z.record(z.string().regex(QUESTION_ID_RE), z.string().max(100_000)),
+      bypass: z.array(z.string().regex(QUESTION_ID_RE)).max(200),
+      bypassAll: z.boolean().optional(),
+    }),
+    output: z.strictObject({ runId: RunId }),
+  },
+  'run.decide': {
+    input: z.strictObject({
+      runId: RunId,
+      choice: z.string().max(20),
+      note: z.string().max(16_000).optional(),
+      /** Only the confirmation page's button sends this; takeover, stop and finish need it. */
+      confirm: z.boolean().optional(),
+    }),
+    output: z.strictObject({ runId: RunId, resumed: z.boolean() }),
+  },
+  'run.cleanInfo': { input: z.strictObject({ runId: RunId }), output: CleanInfoView },
+  'run.clean': {
+    input: z.strictObject({
+      runId: RunId,
+      force: z.boolean(),
+      logs: z.boolean(),
+      confirm: z.literal(true),
+    }),
+    output: z.strictObject({ lines: z.array(z.string()) }),
+  },
+  'run.reveal': {
+    input: z.strictObject({ runId: RunId, what: z.enum(['worktree', 'runDir', 'report']) }),
+    output: z.strictObject({ ok: z.boolean() }),
+  },
+  'run.openLink': {
+    input: z.strictObject({ key: LinkKey }),
+    output: z.strictObject({ ok: z.boolean() }),
+  },
 } as const;
 
 export type IpcChannel = keyof typeof IPC_TABLE;
@@ -118,6 +167,8 @@ export type PushPayloads = {
   'usage.changed': Record<string, never>;
   /** A native menu item: navigate. */
   'app.menu': { action: MenuAction };
+  /** A desktop notification was clicked: show that run. */
+  'app.openRun': { runId: string };
 };
 export const MENU_ACTIONS = [
   'runs',
@@ -137,6 +188,7 @@ export const PUSH_CHANNELS = [
   'run.log',
   'usage.changed',
   'app.menu',
+  'app.openRun',
 ] as const;
 
 // ── the typed bridge: `window.advpipe.<ns>.<name>(input) => Promise<Result<output>>` ──────────────

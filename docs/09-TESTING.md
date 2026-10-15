@@ -6,7 +6,7 @@ tests as you port each module; they encode decisions no prose captured.
 
 ## 1. Rules
 
-1. **No API calls in automated tests. Ever.** Agents are `FakeAgentRunner`s. A test that would spend
+1. **No API calls in automated tests. Ever.** The test build enforces it: with `ADVPIPE_E2E=1` the host starts only the worker named by `ADVPIPE_WORKER_ENTRY` (the fake entry), and `e2e/support.ts`'s `launch` always sets it; with no entry the host points at a script that doesn't exist, so nothing can fall back to the real SDK worker. (This went wrong once in M10: a test that resumed a run from the app, with no entry set, started real agents. Never start the app in a test without this guard.) Agents are `FakeAgentRunner`s. A test that would spend
    money is a manual check (§9), runs only with the owner's explicit go-ahead, and is never in CI.
 2. **Real git, real processes, real files.** Tests that touch git use a real temporary repo; tests
    about detach/cancel/lock start a real child process. Mock only the SDK and the clock.
@@ -161,6 +161,7 @@ unmanageable names listed); `planRun` (precedence, every error and warning, call
 `FakeAgentRunner`. It can be **held at a role until a file appears**, exactly like the Python
 `advpipe_fake_child.py` (a `hold: {role, until: path}` field). Tests:
 
+- *The fake script restarts at its first step in every worker* (a resume is a new process). A resumed run's script is the file `fake-script.json` beside its `start.json` (used when `ADVPIPE_FAKE_SCRIPT` isn't set, as for a resume the app starts); a test swaps it in before the app resumes the run. A step may be a usage limit: `{limit: {billing?, files?}}`.
 - `startWorker` returns promptly while the run continues; `console.log` is appended; the lock holds the
   **child's** pid before the child has written `run.json`; the run completes; the lock is released.
 - Cancel while held at a role → the worker stops at the next safe point; status stays `running`; note
