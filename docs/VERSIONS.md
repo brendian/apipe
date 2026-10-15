@@ -31,14 +31,15 @@ files. Change one deliberately, and update this file in the same change. One cop
 | @playwright/test | 1.64.1 | root (dev) | drives Electron via `_electron.launch`; needs a display (`DISPLAY`), no browsers to download |
 | @types/node | 26.6.5 | root (dev) | |
 
-Not installed yet (add at the milestone that needs them, then list here): jsdom, @testing-library/react,
-vitest-axe (M7), electron-builder (M12), a state library if wanted (M7; ADR-3 allows none).
+Added in M7 (app dev dependencies, exact): jsdom 30.1.3, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.8 (installed, not used yet), vitest-axe 0.1.0. `@advpipe/engine` is now a dependency of the app (main imports it). No state library: a hand-rolled router and a `useRemote` hook are enough (ADR-3).
+
+Not installed yet (add at the milestone that needs them, then list here): electron-builder (M12).
 
 Working combination notes (docs/10 §5 item 27): ESM everywhere (`"type": "module"`); main is emitted as
 ESM `out/main/index.js`; the **sandboxed preload must be CommonJS**, so `electron.vite.config.ts` bundles
 it with `externalizeDeps: false` and `entryFileNames: '[name].cjs'` (output `out/preload/index.cjs`).
 The main bundle leaves workspace packages external (it `import`s `@advpipe/contracts` at runtime from
-`node_modules`); **M12 must bundle or unpack them** for the packaged app.
+`node_modules`); **M12 must bundle or unpack them** for the packaged app. The main bundle now also imports `@advpipe/engine` (and through it the Agent SDK module, loaded but never called in the host) the same way.
 
 ## SDK facts (spikes, M0)
 

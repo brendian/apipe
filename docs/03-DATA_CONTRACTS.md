@@ -380,7 +380,8 @@ sanctioned deviation in the report text (full list of such rewordings: [02-DOMAI
 
 ```ts
 { theme: 'system'|'light'|'dark', recent_repos: string[] /* abs paths, max 10, most recent first */,
-  windows: { [repoPath]: { x,y,width,height,maximized } }, notifications: boolean, items_dir: { [repoPath]: string } }
+  windows: { [repoPath]: { x,y,width,height,maximized } }, notifications: boolean, items_dir: { [repoPath]: string },
+  run_filter: { [repoPath]: 'all'|'running'|'needs_you'|'complete' } /* the runs-list filter, remembered per repo (M7) */ }
 ```
 
 Per-repo `items_dir` defaults to `work-items` (relative to the repo, as `--items-dir` did).

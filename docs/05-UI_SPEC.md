@@ -168,7 +168,7 @@ Shown when a window has no repo, or when preflight fails.
   ⚠ Claude: not known yet — advpipe learns which login you use from the first run.
 ```
 
-- **Preflight** (`app.preflight`): `git --version` works; the folder is inside a git repo with **at least
+- **Preflight** (`app.preflight`): `git --version` works; the folder **is the top of** a git repo (a subfolder is refused with "Open that folder instead", because `.advpipe/` and the worktrees belong at the repo root) with **at least
   one commit** (a worktree needs `HEAD`); the SDK's bundled Claude binary resolves; login kind from
   `.advpipe/usage.json` if present, else `unknown`. A failing check blocks *New run* and says exactly
   what to do ("This folder isn't a git repo. Run `git init` and make a first commit.").

@@ -10,4 +10,6 @@ export * from './slug.js';
 export * from './start.js';
 export * from './blocking.js';
 export * from './text.js';
+export * from './statuses.js';
+export * from './views.js';
 export * from './ipc.js';

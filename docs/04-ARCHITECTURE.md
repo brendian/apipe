@@ -194,16 +194,18 @@ are async unless noted; all take absolute, already-validated repo paths; all thr
 
 ```ts
 // ── read models (pure over files; never throw for "missing", return null/empty) ──────────────
-loadRuns(repo, now?): RunList                       // rows newest first + unreadable ids
+loadRuns(repo, show?): RunList                      // rows newest first (for the filter) + counts + unreadable ids
 loadDetail(repo, runId): RunDetail | null           // throws on unreadable run.json (so the UI shows the message)
 loadStarting(repo, runId): Starting | null
+loadRunHead(repo, runId): RunHead | Starting | null   // M7's `runs.detail`; throws on an unreadable run.json
+preflight(repo, itemsDir): Preflight                 // git, repo, bundled Claude, login, items folder
 loadContext(repo, runId): ContextView               // Spec & context tab
 loadItems(repo, itemsDir): ItemList
 readItem(itemsDir, relPath): ItemDraft
 checkDraft(repo, itemsDir, draft): DraftChecks      // inline errors/warnings for the editor
 planRun(repo, itemsDir, form): RunPlan              // what "New run" would do (+ errors/warnings/summary)
 tailEvents(repo, runId, offset, maxBytes?): { lines: EventLine[]; next_offset: number; ended: boolean }
-loadUsage(repo): UsageView
+loadUsage(repo, now?): UsageView
 
 // ── commands that run quickly in the host ─────────────────────────────────────────────────────
 recordAnswers(repo, runId, answers, bypass): RunState
@@ -242,14 +244,16 @@ text, never HTML).
 
 | Channel | Input | Output |
 |---|---|---|
-| `app.prefs.get` / `app.prefs.set` | – / partial prefs | prefs |
+| `app.window.info` | – | `{repo: {name, path} \| null}`: which repo this window is bound to (the window can't choose it) |
+| `app.prefs.get` / `app.prefs.set` | – / `{theme?, notifications?, run_filter?}` | `PrefsView` (theme, notifications, this repo's runs filter, the recent list as `{index, name, path, exists}`). The recent list and window bounds are managed by main only; `run_filter` is stored for the window's repo |
 | `app.repo.pick` | – | opens the native folder dialog **in main**; returns `{opened: path}` (renderer never sees an arbitrary path to act on) |
-| `app.repo.openRecent` | `{index}` | opens that repo in a new window |
-| `app.preflight` | – | `{git:{ok,version}, repo:{ok,isGit,hasCommit,branch,dirty}, claude:{ok, login:LoginKind, version}, itemsDir:{path,exists}}` |
-| `runs.list` | `{show: 'all'\|'running'\|'needs_you'\|'complete'}` | `RunList` |
-| `runs.detail` | `{runId}` | `RunDetail \| Starting \| null` |
+| `app.repo.openRecent` / `app.repo.forgetRecent` | `{index}` | opens that repo (focusing its window if open; a window with no repo becomes that repo's window) / removes it from the list (`PrefsView`) |
+| `app.preflight` | – | `{git:{ok,version}, repo:{ok,is_git,has_commit,branch,dirty}, claude:{ok,login,version}, items_dir:{path,exists}}`; each part also has `level` (`ok`/`warn`/`bad`) and `text`, the plain-words line the Welcome page shows (snake_case, like every contract) |
+| `runs.list` | `{show: 'all'\|'running'\|'needs_you'\|'complete'}` | `RunList` (`rows` for that filter, `counts` for all four, `unreadable`) |
+| `runs.detail` | `{runId}` | `RunDetail \| Starting \| null`: null if the directory is missing; an **error** ("Can't read this run: …") if run.json can't be read. *M7 answers `RunHead` (the list row) in place of `RunDetail`; M8 widens it* |
 | `runs.context` | `{runId}` | `ContextView` |
 | `runs.log.subscribe` / `runs.log.unsubscribe` | `{runId, offset}` | `{ok}` (then pushes, §5.2) |
+| `usage.get` | – | `UsageView` (the login and usage line: last known, with its age) |
 | `items.list` | – | `ItemList` |
 | `items.read` | `{path}` | `ItemDraft` |
 | `items.check` | `Draft` | `DraftChecks` (the live preview + inline errors) |
@@ -289,9 +293,7 @@ a generic `invoke(channel, …)`, never `send`. `on()` accepts only channel name
 
 ## 6. Live updates
 
-- **Main** keeps one watcher set **per open window** (not per run): `<repo>/.advpipe/runs` (recursive
-  where the platform supports it, else a per-run-directory watcher set plus a 2 s directory scan) and
-  `<repo>/.advpipe/usage.json`. Use `fs.watch` + a **polling fallback** (a 1 s stat loop over
+- **Main** keeps one watcher **per open window** (not per run): `fs.watch` on `<repo>/.advpipe` (not recursive: it also holds the worktrees, which agents write to all day) and on `<repo>/.advpipe/runs` (recursive), re-attached when the folders appear. Built: `app/main/watch.ts`. What counts as a change is a **signature** per run (stats of `run.json`, `run.lock` and whether its pid is alive; for `run.changed` also `report.md` and the size of `events.jsonl`) and of `usage.json`, compared on every poll. Use `fs.watch` + a **polling fallback** (a 1 s stat loop over
   `run.json`/`run.lock`/`events.jsonl` of runs that are `running`), because `fs.watch` is unreliable on
   network drives, in containers and on some platforms. Coalesce bursts (150 ms trailing debounce).
 - **Log tailing** (`tailEvents`): read `events.jsonl` from a byte offset; return only complete lines
@@ -299,8 +301,10 @@ a generic `invoke(channel, …)`, never `send`. `on()` accepts only channel name
   `error` log line, not a crash. `next_offset` is the byte offset after the last complete line. The
   page passes the size it rendered, so nothing shows twice; a reconnect resumes exactly (same
   guarantee as the original's SSE `Last-Event-ID`).
-- **`ended`**: true once a `status` event with `final: true` has been read **and** no live process holds
-  `run.lock` (check once more after reading so no last line is missed).
+- **`ended`**: true when no live process holds `run.lock` **and** the read has reached the end of the file
+  (the final `status` line, if there is one, is among what was read). Checked once more after the lock test
+  so a line written in between is not missed. (A resumed run's file holds earlier `final` lines, so "a final
+  line was read" can't be the test.)
 - **Runs started elsewhere** (another window, another app instance, even the Python CLI) appear live,
   because everything is derived from files.
 - The renderer refetches `runs.detail` on `run.changed` with a short delay (300 ms trailing, **not**

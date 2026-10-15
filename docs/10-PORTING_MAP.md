@@ -27,18 +27,18 @@ is how the next session knows where things stand.
 | `orchestrator.py` | `engine/src/orchestrator/{orchestrator,resume}.ts` | M4–M5 | ☑ | M4: `run`/`drive`/`openWorkspace`/`enter`/`stop`/`ask`/`askRed`/`askUsage`/`stage`/`settle`/`personFix`/`applyRetry`/`applyScanChoice`, `resume`/`checkResumable`/`checkSameShape`/`newRunId`. M5: `solo`/`soloChecks`/`soloFix`, the SPEC loop with revisions, `questionStop`, `bypass`, `begin`/`beginSpec`, `newQuestions`, and `checkResumable`'s `migrate` + answers-ready paths. Methods are camelCase; one class instead of per-stage files |
 | `cli.py` | **(deleted)**; its behaviour is the host's IPC handlers + UI | M7+ | – | `_summary`/`status` text feeds the worker's end-of-run line only; `gates` command deferred |
 | `__main__.py` | `engine/src/worker.ts` (hidden; body in `worker-core.ts`; test entry `worker-fake.ts`) | M6 | ☑ | the fake-agent hook is a separate entry, so release builds never contain it |
-| `ui/runs.py` | `engine/src/readmodel/runs.ts` | M7 | ☐ | `display_status`, `STATUSES`, `FILTERS`, `stage_label` |
+| `ui/runs.py` | `engine/src/readmodel/runs.ts` + `contracts/src/statuses.ts` | M7 | ☑ | `displayStatus`, `stageLabel`, `loadRuns`, `loadStarting`, `loadRunHead` are engine (they need the lock and the files); `STATUSES`, `FILTERS`, `titleOf`, `ageOf`, `levelText` are pure and live in `contracts` so the window can use them. Ages are computed in the window from `started_at` so they stay true between refetches. The help texts have the CLI commands replaced by the buttons (02 §19) |
 | `ui/detail.py` | `engine/src/readmodel/{detail,next-steps}.ts` | M8 | ☐ | timeline, rounds, decision view, next steps (minus `advpipe …` commands) |
 | `ui/context.py` | `engine/src/readmodel/context.ts` | M8 | ☐ | |
 | `ui/items.py` | `engine/src/readmodel/items.ts` + `core` file ops | M9 | ☐ | `itemPath`, grouping, git states, `checkDraft`, `saveItem` (sha256 guard) |
 | `ui/actions.py` | `engine/src/readmodel/plan-run.ts` + host handlers | M9–M10 | ☐ | `planRun`, `VALID`, `parseBudget`, `suggestedBudget`, `cleanInfo`; **no `call_advpipe`** |
-| `ui/live.py` | `engine/src/readmodel/live.ts` (`tailEvents`) + host watcher | M7 | ☐ | SSE → push |
+| `ui/live.py` | `engine/src/readmodel/live.ts` (`tailEvents`) + `app/main/watch.ts` (host watcher) | M7 | ☑ | SSE → push. `tailEvents` is built and tested; the `run.log` push that uses it is M8 |
 | `ui/render.py` | `engine/src/readmodel/render.ts` (markdown-it) + `renderer/components/Markdown` | M8 | ☐ | |
-| `ui/usage_view.py` | `engine/src/readmodel/usage-view.ts` | M10 | ☐ | |
-| `ui/security.py`, `ui/app.py`, `ui/state.py` | **(deleted)**; replaced by Electron hardening + IPC (08) | M7 | – | |
-| `ui/routes/*.py` | `app/main/ipc/*.ts` handlers + `app/renderer/pages/*` | M7–M10 | ☐ | `help.py` → Help page built from the same tables |
-| `ui/templates/*.html` | `app/renderer/components/*`, `pages/*` | M7–M11 | ☐ | each template ↔ a component; see 05 |
-| `ui/static/app.css`, `theme.js`, `app.js` | `renderer/styles/*.css`, theme bootstrap in preload, small hooks | M7, M11 | ☐ | no htmx; no SSE ext |
+| `ui/usage_view.py` | `engine/src/readmodel/usage-view.ts` | M7 (repo form), M8 (per-run form) | ◐ | `loadUsage(repo)` and the `usage.get` channel are built (the runs-list usage line); `for_run` (a run's own snapshots) comes with the run page in M8 |
+| `ui/security.py`, `ui/app.py`, `ui/state.py` | **(deleted)**; replaced by Electron hardening + IPC (08) | M7 | – | done: `app/main/{index,ipc,windows,menu,prefs,watch,log,repo}.ts` |
+| `ui/routes/*.py` | `app/main/ipc.ts` handlers + `app/renderer/pages/*` | M7–M10 | ◐ | M7: the runs list, welcome/preflight and the run page's starting-up panel and header; the rest by milestone | `help.py` → Help page built from the same tables |
+| `ui/templates/*.html` | `app/renderer/components/*`, `pages/*` | M7–M11 | ◐ | M7: `runs.html`, the base layout, status/level chips | each template ↔ a component; see 05 |
+| `ui/static/app.css`, `theme.js`, `app.js` | `renderer/styles/{tokens,base,components}.css`, theme bootstrap in the preload, small hooks | M7, M11 | ◐ | tokens, base and the M7 components are done; the theme is applied before first paint (the preload reads a launch argument from main); no htmx; no SSE ext |
 | `prompts/*.md` | `/assets/prompts/*.md` (already copied) | M0 | ☑ | verbatim; sync test |
 
 ## 2. Tests
@@ -67,12 +67,12 @@ All under `tests/` in the Python tree. TS tests live beside the module under `pa
 | `test_usage.py` | `engine/test/usage.test.ts` | pure parts ☑ (M1, `contracts/test/usage.test.ts`); pause/retry/finish scenarios ☑ (M5, the `usage limits` block of `decisions.test.ts`); SDK-runner stream cases are `SdkAgentRunner`'s and wait for a real call (M3 note); `advpipe usage` output N/A (UI usage view tested instead) |
 | `test_reports.py` | `engine/test/reports.test.ts` | |
 | `test_control.py` | `engine/test/control.test.ts`, `process.test.ts` | ☑ M6 (lightly): real detached workers (start, cancel, forced stop, SIGKILL, parallel branches, answers, decide, clean); clean rules and run-id traversal in-process |
-| `test_ui.py` | `app/main/test/handlers.test.ts` + renderer tests | token/CSRF/Host tests N/A (no server) → replaced by IPC hostile-input tests |
+| `test_ui.py` | `app/test/ipc.test.ts` + `app/test/main.test.ts` + renderer tests | ☑ M7 (the runs-list parts, lightly): token/CSRF/Host tests N/A (no server) → replaced by IPC hostile-input tests; `load_runs`, `display_status`, `age`, `title_of` are in `engine/test/readmodel.test.ts` and `contracts/test/ipc.test.ts` |
 | `test_ui_detail.py`, `test_ui_context.py` | `engine/test/readmodel-detail.test.ts`, `readmodel-context.test.ts` + renderer page tests | SSE tests → `tailEvents` + push tests |
 | `test_ui_items.py` | `engine/test/items.test.ts` + renderer editor tests | path-traversal suite kept in full |
 | `test_ui_actions.py` | `engine/test/plan-run.test.ts` + `handlers.test.ts` | exact subprocess argv checks → exact `start.json` contents + `spawn` args |
 | `test_ui_levels.py`, `test_ui_decisions.py`, `test_ui_answers.py` | renderer page tests + `plan-run`/handler tests | |
-| `test_ui_polish.py` | renderer a11y/CSS-token tests + e2e smoke | "no inline script/style", both-theme colours, focus ring present, tablet rules |
+| `test_ui_polish.py` | renderer a11y/CSS-token tests + e2e smoke | "no inline script/style", both-theme colours, focus ring present, tablet rules. ◐ M7: `app/test/tokens.test.ts` (both-theme tokens, focus ring, reduced motion), axe in `pages.test.tsx`, CSP in `e2e/shell.spec.ts`; the rest in M11 |
 | `tests/advpipe_fake_child.py` | `engine/src/worker.ts` test build (`ADVPIPE_FAKE_SCRIPT`) | |
 | `scripts/ui_screenshots.py` | `scripts/make-screenshots` (Playwright) | |
 

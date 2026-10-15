@@ -170,7 +170,7 @@ The worker prints the one-line summary (`_summary` text without the CLI-only hin
 answer its questions, decide at its stops, and clean up — **with no UI**. This is the engine's acceptance
 test.
 
-## M7 · App shell and runs list
+## M7 · App shell and runs list  ✔ done 2026-10-15
 
 **Read:** 04 §2/§5/§6/§7, 05 §1–§5.1/§6, 08 (all).
 
@@ -179,6 +179,8 @@ bridge generated from the IPC table, `createHandlers(deps)` with zod in/out and 
 `readmodel/runs.ts` (+ `displayStatus`, `STATUSES`, `FILTERS`), file watchers with polling fallback,
 `tailEvents`, the renderer shell (top bar, routes, theme bootstrap before first paint, tokens, base
 components), **Welcome/preflight** and the **Runs list** (live), the starting-up panel plumbing.
+
+*(Built. Not in the original list but needed: `usage.get` (the usage line), `app.window.info`, `app.repo.forgetRecent`. `runs.detail` answers only the starting-up panel and a header until M8 widens it. Menus, Back/Forward buttons and ⌘[ / ⌘] are in; the Clean up… button and `g r`-style shortcuts are not (M10, M11).)*
 
 **Tests:** handler tests (09 §7) for the channels added; `displayStatus` table tests; Testing Library page
 tests with axe; first e2e (open repo → empty list → start a **scripted** run via a test-only channel or

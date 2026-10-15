@@ -1,29 +1,114 @@
+import path from 'node:path';
 import {
   IPC_TABLE,
+  type FilterKey,
   type IpcChannel,
   type IpcInput,
   type IpcOutput,
+  type Prefs,
+  type PrefsView,
   type Result,
+  type RunDetailOut,
+  type RunList,
+  type UsageView,
+  type Preflight,
 } from '@advpipe/contracts';
+import { prefsView } from './prefs.js';
 
-/** What a handler needs from its caller. Kept Electron-free so handlers are unit-testable. */
+/** Where a call came from: checked before a handler runs, resolved by main, never by the window. */
 export interface SenderInfo {
   /** URL of the frame that sent the message. */
   frameUrl: string;
   /** True only for a web contents belonging to a window we created. */
   isOurWindow: boolean;
+  /** The repo that window is bound to (null: the welcome window). The window can't choose it. */
+  repo?: string | null;
+  windowId?: number;
+}
+
+/** What a handler knows about its caller. */
+export type Ctx = { repo: string | null; windowId: number };
+
+/** An error whose message is meant for a person and is safe to render (as text, never HTML). */
+export class UserError extends Error {
+  override name = 'UserError';
 }
 
 export type Handlers = {
-  [C in IpcChannel]: (input: IpcInput<C>) => Promise<IpcOutput<C>>;
+  [C in IpcChannel]: (input: IpcInput<C>, ctx: Ctx) => Promise<IpcOutput<C>>;
 };
 
 export const APP_ORIGIN = 'app://renderer';
 
-/** Handlers hold the logic; `createHandlers` is where product channels get their engine deps (M7+). */
-export function createHandlers(): Handlers {
+/** What the handlers need from the rest of the host; tests pass fakes. */
+export interface Deps {
+  prefs: {
+    get(): Prefs;
+    update(change: (prefs: Prefs) => void): Prefs;
+    forgetRecent(index: number): void;
+  };
+  engine: {
+    loadRuns(repo: string, show: FilterKey): RunList;
+    loadRunHead(repo: string, runId: string): RunDetailOut;
+    loadUsage(repo: string): UsageView;
+    preflight(repo: string, itemsDir: string): Promise<Preflight>;
+  };
+  windows: {
+    /** Show the folder dialog (in main) and open what was picked. */
+    pick(windowId: number): Promise<boolean>;
+    /** Open `repo` (focusing its window if it's open already). Throws UserError if it can't. */
+    open(repo: string, fromWindowId: number): Promise<boolean>;
+  };
+  exists(dir: string): boolean;
+  defaultItemsDir: string;
+}
+
+export function createHandlers(deps: Deps): Handlers {
+  const need = (ctx: Ctx): string => {
+    if (ctx.repo === null) throw new UserError('No repo is open in this window.');
+    return ctx.repo;
+  };
+  const view = (ctx: Ctx): PrefsView => prefsView(deps.prefs.get(), ctx.repo, deps.exists);
+
   return {
-    'app.ping': async ({ message }) => ({ reply: `pong: ${message}` }),
+    'app.window.info': async (_in, ctx) => ({
+      repo:
+        ctx.repo === null ? null : { name: path.basename(ctx.repo) || ctx.repo, path: ctx.repo },
+    }),
+    'app.prefs.get': async (_in, ctx) => view(ctx),
+    'app.prefs.set': async (change, ctx) => {
+      deps.prefs.update((p) => {
+        if (change.theme !== undefined) p.theme = change.theme;
+        if (change.notifications !== undefined) p.notifications = change.notifications;
+        if (change.run_filter !== undefined) p.run_filter[need(ctx)] = change.run_filter;
+      });
+      return view(ctx);
+    },
+    'app.repo.pick': async (_in, ctx) => ({ opened: await deps.windows.pick(ctx.windowId) }),
+    'app.repo.openRecent': async ({ index }, ctx) => {
+      const repo = deps.prefs.get().recent_repos[index];
+      if (repo === undefined) throw new UserError('That repo is not in the recent list any more.');
+      return { opened: await deps.windows.open(repo, ctx.windowId) };
+    },
+    'app.repo.forgetRecent': async ({ index }, ctx) => {
+      deps.prefs.forgetRecent(index);
+      return view(ctx);
+    },
+    'app.preflight': async (_in, ctx) => {
+      const repo = need(ctx);
+      const dir = deps.prefs.get().items_dir[repo] ?? deps.defaultItemsDir;
+      return deps.engine.preflight(repo, dir);
+    },
+    'runs.list': async ({ show }, ctx) => deps.engine.loadRuns(need(ctx), show),
+    'runs.detail': async ({ runId }, ctx) => {
+      try {
+        return deps.engine.loadRunHead(need(ctx), runId);
+      } catch (e) {
+        if (e instanceof UserError) throw e;
+        throw new UserError(`Can't read this run: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+    'usage.get': async (_in, ctx) => deps.engine.loadUsage(need(ctx)),
   };
 }
 
@@ -45,19 +130,25 @@ export async function dispatch(
   raw: unknown,
   sender: SenderInfo,
   devOrigin: string | null = null,
+  onError: (message: string, err: unknown) => void = () => undefined,
 ): Promise<Result<unknown>> {
   if (!senderAllowed(sender, devOrigin)) return { ok: false, error: 'Request refused.' };
   if (!Object.hasOwn(IPC_TABLE, channel)) return { ok: false, error: 'Unknown request.' };
   const name = channel as IpcChannel;
   const spec = IPC_TABLE[name];
-  const input = spec.input.safeParse(raw);
+  const input = spec.input.safeParse(raw === undefined ? {} : raw);
   if (!input.success) return { ok: false, error: 'Invalid request.' };
   try {
-    const handler = handlers[name] as (i: unknown) => Promise<unknown>;
-    const output = spec.output.parse(await handler(input.data));
+    const handler = handlers[name] as (i: unknown, ctx: Ctx) => Promise<unknown>;
+    const ctx: Ctx = { repo: sender.repo ?? null, windowId: sender.windowId ?? 0 };
+    const output = spec.output.parse(await handler(input.data, ctx));
     return { ok: true, value: output };
   } catch (err) {
-    console.error(`ipc ${channel} failed:`, err);
-    return { ok: false, error: 'Something went wrong. The details are in the log.' };
+    if (err instanceof UserError) return { ok: false, error: err.message };
+    onError(`ipc ${channel} failed`, err);
+    return {
+      ok: false,
+      error: 'Something went wrong. The details are in the log (Help → Open log folder).',
+    };
   }
 }

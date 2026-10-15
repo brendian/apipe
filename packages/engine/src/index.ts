@@ -24,3 +24,5 @@ export * from './stages/index.js';
 export * from './orchestrator/index.js';
 export * from './core/proc.js';
 export * from './core/control.js';
+// M7: read models for the app shell and the runs list.
+export * from './readmodel/index.js';

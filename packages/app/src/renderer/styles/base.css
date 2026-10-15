@@ -1,10 +1,11 @@
-:root {
-  color-scheme: light dark;
-  --bg: light-dark(#ffffff, #14161a);
-  --text: light-dark(#1b1f24, #e6e8eb);
-  --accent: light-dark(#1f5fbf, #7aa7f0);
-  --focus-ring: light-dark(#1f5fbf, #7aa7f0);
-  --font-ui: system-ui, sans-serif;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%; /* text scales with the OS and zoom */
 }
 
 body {
@@ -12,15 +13,95 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
+  line-height: 1.5;
 }
 
-main {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 1.5rem;
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 var(--space-3);
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+a {
+  color: var(--link);
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+pre {
+  overflow: auto; /* wide content scrolls inside its box, never the page */
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+main {
+  display: block;
+  max-width: var(--max-content);
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+main:focus,
+h1:focus {
+  outline: none; /* focus is moved here on navigation; the heading isn't a control */
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -4rem;
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: var(--radius-1);
+}
+
+.skip-link:focus {
+  top: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 48rem) {
+  main {
+    padding: var(--space-3);
+  }
 }

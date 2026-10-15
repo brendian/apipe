@@ -8,5 +8,12 @@
     "types": ["node"]
   },
   "include": ["src/main", "src/preload", "electron.vite.config.ts", "test"],
-  "references": [{ "path": "../contracts" }]
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../engine"
+    }
+  ]
 }
