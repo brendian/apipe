@@ -3,8 +3,10 @@ import type { AdvpipeApi } from '@advpipe/contracts';
 import { ApiProvider, useApi } from '../state/api.js';
 import { useRemote } from '../state/remote.js';
 import { RouterProvider, useRouter } from '../state/router.js';
+import { PanelStateProvider } from '../state/panels.js';
 import { WindowProvider } from '../state/window.js';
 import { Callout } from '../components/Callout.js';
+import { ContextPage } from '../pages/ContextPage.js';
 import { Placeholder } from '../pages/Placeholder.js';
 import { RunPage } from '../pages/RunPage.js';
 import { Runs } from '../pages/Runs.js';
@@ -25,7 +27,7 @@ function Routes() {
     case 'new-run':
       return <Placeholder title="New run" />;
     case 'run-context':
-      return <Placeholder title="Spec & context" />;
+      return <ContextPage runId={route.id} />;
     case 'items':
       return <Placeholder title="Work items" />;
     case 'help':
@@ -60,7 +62,9 @@ function Ready() {
     <WindowProvider value={{ repo, initialFilter: prefs.state.value.run_filter }}>
       <Boot hasRepo={repo !== null} />
       <Shell theme={prefs.state.value.theme}>
-        <Routes />
+        <PanelStateProvider>
+          <Routes />
+        </PanelStateProvider>
       </Shell>
     </WindowProvider>
   );

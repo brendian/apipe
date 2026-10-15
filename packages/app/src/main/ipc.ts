@@ -8,6 +8,7 @@ import {
   type Prefs,
   type PrefsView,
   type Result,
+  type ContextView,
   type RunDetailOut,
   type RunList,
   type UsageView,
@@ -49,9 +50,14 @@ export interface Deps {
   };
   engine: {
     loadRuns(repo: string, show: FilterKey): RunList;
-    loadRunHead(repo: string, runId: string): RunDetailOut;
+    loadDetail(repo: string, runId: string): RunDetailOut;
+    loadContext(repo: string, runId: string): Promise<ContextView | null>;
     loadUsage(repo: string): UsageView;
     preflight(repo: string, itemsDir: string): Promise<Preflight>;
+  };
+  logs: {
+    subscribe(windowId: number, repo: string, runId: string, offset: number): void;
+    unsubscribe(windowId: number, runId: string): void;
   };
   windows: {
     /** Show the folder dialog (in main) and open what was picked. */
@@ -67,6 +73,15 @@ export function createHandlers(deps: Deps): Handlers {
   const need = (ctx: Ctx): string => {
     if (ctx.repo === null) throw new UserError('No repo is open in this window.');
     return ctx.repo;
+  };
+  /** A run.json that can't be read is "Can't read this run", never "No such run". */
+  const unreadable = async <T>(read: () => T | Promise<T>): Promise<T> => {
+    try {
+      return await read();
+    } catch (e) {
+      if (e instanceof UserError) throw e;
+      throw new UserError(`Can't read this run: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
   const view = (ctx: Ctx): PrefsView => prefsView(deps.prefs.get(), ctx.repo, deps.exists);
 
@@ -100,13 +115,17 @@ export function createHandlers(deps: Deps): Handlers {
       return deps.engine.preflight(repo, dir);
     },
     'runs.list': async ({ show }, ctx) => deps.engine.loadRuns(need(ctx), show),
-    'runs.detail': async ({ runId }, ctx) => {
-      try {
-        return deps.engine.loadRunHead(need(ctx), runId);
-      } catch (e) {
-        if (e instanceof UserError) throw e;
-        throw new UserError(`Can't read this run: ${e instanceof Error ? e.message : String(e)}`);
-      }
+    'runs.detail': async ({ runId }, ctx) =>
+      unreadable(() => deps.engine.loadDetail(need(ctx), runId)),
+    'runs.context': async ({ runId }, ctx) =>
+      unreadable(() => deps.engine.loadContext(need(ctx), runId)),
+    'runs.log.subscribe': async ({ runId, offset }, ctx) => {
+      deps.logs.subscribe(ctx.windowId, need(ctx), runId, offset);
+      return { ok: true };
+    },
+    'runs.log.unsubscribe': async ({ runId }, ctx) => {
+      deps.logs.unsubscribe(ctx.windowId, runId);
+      return { ok: true };
     },
     'usage.get': async (_in, ctx) => deps.engine.loadUsage(need(ctx)),
   };

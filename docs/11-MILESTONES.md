@@ -186,7 +186,9 @@ components), **Welcome/preflight** and the **Runs list** (live), the starting-up
 tests with axe; first e2e (open repo → empty list → start a **scripted** run via a test-only channel or
 direct engine call → it appears live).
 
-## M8 · Run detail
+## M8 · Run detail  ✔ done 2026-10-15
+
+*(Built. Not built, by design: the answer form, decision controls, Resume/Cancel/Clean buttons, `run.reveal`/`run.openLink` are M10; the page shows what a run is waiting for, read-only, and says so. Links inside rendered markdown are inert with no "Copy link" yet. `runs.log.unsubscribe` takes `{runId}` only. Step-state wording follows the Python (`if_needed` = "only if needed").)*
 
 **Read:** 05 §5.2–§5.3, 02 §4 (timeline semantics); `ui/detail.py context.py render.py`; `test_ui_detail,
 test_ui_context`.

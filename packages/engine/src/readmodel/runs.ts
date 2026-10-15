@@ -9,7 +9,6 @@ import {
   type Config,
   type DisplayStatus,
   type FilterKey,
-  type RunHead,
   type RunList,
   type RunRow,
   type RunState,
@@ -45,7 +44,7 @@ export function displayStatus(state: RunState, runlog: RunLog): DisplayStatus {
   return state.status;
 }
 
-function readConfig(runlog: RunLog): Config | null {
+export function readConfig(runlog: RunLog): Config | null {
   try {
     return runlog.readConfig();
   } catch {
@@ -66,7 +65,7 @@ export function stageLabel(state: RunState, config: Config | null): string {
   return label;
 }
 
-function rowOf(runId: string, state: RunState, runlog: RunLog): RunRow {
+export function rowOf(runId: string, state: RunState, runlog: RunLog): RunRow {
   const config = readConfig(runlog);
   return {
     run_id: runId,
@@ -148,24 +147,11 @@ export function loadStarting(repo: string, runId: string): Starting | null {
   };
 }
 
-function isDirectory(dir: string): boolean {
+export function isDirectory(dir: string): boolean {
   try {
     return statSync(dir).isDirectory();
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false;
     throw e; // an unreadable directory is not "no such run"
   }
-}
-
-/**
- * What `runs.detail` answers: null if the run directory is missing, the starting-up view while
- * run.json isn't there yet, else the run's row. Throws (with the reason) if run.json can't be read,
- * so the page can say "Can't read this run" rather than "No such run".
- */
-export function loadRunHead(repo: string, runId: string): RunHead | Starting | null {
-  const runlog = RunLog.forRun(repo, checkRunId(runId));
-  if (!isDirectory(runlog.root)) return null;
-  const starting = loadStarting(repo, runId);
-  if (starting) return starting;
-  return { kind: 'run', row: rowOf(runId, runlog.readState(), runlog) };
 }

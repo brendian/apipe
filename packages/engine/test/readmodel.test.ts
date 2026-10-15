@@ -11,7 +11,7 @@ import {
 } from '@advpipe/contracts';
 import {
   displayStatus,
-  loadRunHead,
+  loadDetail,
   loadRuns,
   loadStarting,
   loadUsage,
@@ -128,7 +128,7 @@ describe('loadRuns', () => {
 describe('runs.detail plumbing', () => {
   it('tells a missing run, a starting run and a readable run apart', () => {
     const repo = scratchRepo();
-    expect(loadRunHead(repo, 'nope')).toBeNull();
+    expect(loadDetail(repo, 'nope')).toBeNull();
     const dir = path.join(repo, '.advpipe', 'runs', 'starting');
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, 'console.log'), 'line1\nline2\n');
@@ -139,10 +139,10 @@ describe('runs.detail plumbing', () => {
     });
     fakeRun(repo, 'ready');
     expect(loadStarting(repo, 'ready')).toBeNull();
-    expect(loadRunHead(repo, 'ready')).toMatchObject({ kind: 'run' });
-    expect(() => loadRunHead(repo, '../x')).toThrow();
+    expect(loadDetail(repo, 'ready')).toMatchObject({ kind: 'run' });
+    expect(() => loadDetail(repo, '../x')).toThrow();
     writeFileSync(path.join(repo, '.advpipe', 'runs', 'ready', 'run.json'), '{nope');
-    expect(() => loadRunHead(repo, 'ready')).toThrow(); // "can't read", not "no such run"
+    expect(() => loadDetail(repo, 'ready')).toThrow(); // "can't read", not "no such run"
   });
 });
 

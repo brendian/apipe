@@ -7,6 +7,9 @@ import {
   type PushChannel,
   type PushPayloads,
   type Result,
+  type RoundViewData,
+  type RunDetail,
+  type StepViewData,
   type RunList,
   type RunRow,
   type UsageView,
@@ -28,6 +31,65 @@ export const row = (over: Partial<RunRow> = {}): RunRow => ({
   started_at: new Date(Date.now() - 3.5 * 60_000).toISOString(),
   work_item_file: '',
   level: 'tests',
+  ...over,
+});
+
+const quietUsageView: UsageView = {
+  login: 'subscription',
+  login_label: 'Claude subscription',
+  cost_label: 'API-equivalent, not billed',
+  console: false,
+  warn: '',
+  note: 'Not known yet: advpipe sees usage only when Claude reports a change.',
+  meters: [],
+};
+
+/** A run's page data with nothing in its timeline; tests override what they look at. */
+export const detailOf = (over: Partial<RunDetail> = {}): RunDetail => ({
+  kind: 'run',
+  row: row(),
+  title: 'Add clamp',
+  live: false,
+  elapsed: '3m 07s',
+  scan: false,
+  dropped: [],
+  worktree_kept: false,
+  work_item_file: '',
+  usage: quietUsageView,
+  timeline: [],
+  report_html: null,
+  next_steps: [],
+  decision_view: null,
+  ...over,
+});
+
+export const roundOf = (over: Partial<RoundViewData> = {}): RoundViewData => ({
+  key: 'code/round-1',
+  title: 'Round 1',
+  author_role: 'coder',
+  author_html: null,
+  diff: null,
+  gates: [],
+  critics: [],
+  test_fix_html: null,
+  expect_red: false,
+  task_html: null,
+  asked: [],
+  notice: '',
+  decision: null,
+  outcome: '',
+  ...over,
+});
+
+export const stepOf = (over: Partial<StepViewData> = {}): StepViewData => ({
+  stage: 'CODE',
+  label: 'CODE',
+  state: 'current',
+  summary: '',
+  rounds: [],
+  task_html: null,
+  rulings: [],
+  rulings_note: '',
   ...over,
 });
 
@@ -90,6 +152,8 @@ export type Stub = {
   fns: {
     runsList: ReturnType<typeof vi.fn>;
     runsDetail: ReturnType<typeof vi.fn>;
+    subscribe: ReturnType<typeof vi.fn>;
+    unsubscribe: ReturnType<typeof vi.fn>;
     prefsSet: ReturnType<typeof vi.fn>;
     pick: ReturnType<typeof vi.fn>;
   };
@@ -100,6 +164,7 @@ export function makeApi(
     repo?: WindowInfo['repo'];
     list?: () => RunList;
     detail?: () => unknown;
+    context?: () => unknown;
     detailError?: string;
     prefs?: PrefsView;
     preflight?: Preflight;
@@ -114,6 +179,8 @@ export function makeApi(
       ? ({ ok: false, error: over.detailError } as const)
       : ok((over.detail ?? (() => null))()),
   );
+  const subscribe = vi.fn(async () => ok({ ok: true }));
+  const unsubscribe = vi.fn(async () => ok({ ok: true }));
   const prefsSet = vi.fn(async () => ok(over.prefs ?? prefsView()));
   const pick = vi.fn(async () => ok({ opened: false }));
   const api = {
@@ -127,7 +194,12 @@ export function makeApi(
       },
       preflight: async () => ok(over.preflight ?? goodPreflight),
     },
-    runs: { list: runsList, detail: runsDetail },
+    runs: {
+      list: runsList,
+      detail: runsDetail,
+      context: async () => ok((over.context ?? (() => null))()),
+      log: { subscribe, unsubscribe },
+    },
     usage: { get: async () => ok(over.usage ?? quietUsage) },
     on: (channel: string, cb: (p: unknown) => void) => {
       const set = listeners.get(channel) ?? new Set();
@@ -139,7 +211,7 @@ export function makeApi(
   return {
     api,
     emit: (channel, payload) => listeners.get(channel)?.forEach((cb) => cb(payload)),
-    fns: { runsList, runsDetail, prefsSet, pick },
+    fns: { runsList, runsDetail, subscribe, unsubscribe, prefsSet, pick },
   };
 }
 

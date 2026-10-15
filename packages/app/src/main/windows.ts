@@ -2,6 +2,8 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow, dialog } from 'electron';
 import type { PushChannel, PushPayloads } from '@advpipe/contracts';
+import { tailEvents } from '@advpipe/engine';
+import { LogSubscriptions } from './logsub.js';
 import { UserError } from './ipc.js';
 import type { PrefsStore } from './prefs.js';
 import { isDirectory } from './repo.js';
@@ -35,6 +37,14 @@ const real = (dir: string): string => {
  */
 export class Windows {
   private readonly entries = new Map<number, Entry>(); // keyed by webContents id
+  /** Who is following which run's log (docs/04 §6). */
+  readonly logs = new LogSubscriptions({
+    tail: tailEvents,
+    send: (id, push) => {
+      const win = this.entries.get(id)?.win;
+      if (win && !win.isDestroyed()) win.webContents.send('run.log' satisfies PushChannel, push);
+    },
+  });
 
   constructor(private readonly o: WindowsOptions) {}
 
@@ -110,8 +120,11 @@ export class Windows {
   }
 
   private watch(win: BrowserWindow, repo: string): () => void {
+    const id = win.webContents.id;
     const watcher = watchRepo(repo, (channel, payload) => {
-      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+      if (win.isDestroyed()) return;
+      win.webContents.send(channel, payload);
+      if (channel === 'run.changed') this.logs.poke(id, (payload as { runId: string }).runId);
     });
     return () => watcher.close();
   }
@@ -165,6 +178,7 @@ export class Windows {
       });
     });
     win.on('closed', () => {
+      this.logs.drop(id);
       this.entries.get(id)?.stopWatching?.();
       this.entries.delete(id);
     });

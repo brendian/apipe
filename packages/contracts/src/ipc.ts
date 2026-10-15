@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { isValidRunId } from './primitives.js';
+import { ContextView, RunDetailOut, type LogPush } from './detail.js';
 import {
   FilterKeySchema,
   Preflight,
   PrefsView,
-  RunDetailOut,
   RunList,
   ThemePref,
   UsageView,
@@ -55,6 +55,19 @@ export const IPC_TABLE = {
     input: z.strictObject({ runId: RunId }),
     output: RunDetailOut,
   },
+  'runs.context': {
+    input: z.strictObject({ runId: RunId }),
+    output: ContextView.nullable(),
+  },
+  // The live log: subscribe from a byte offset, then `run.log` pushes carry what is new.
+  'runs.log.subscribe': {
+    input: z.strictObject({ runId: RunId, offset: z.number().int().min(0) }),
+    output: z.strictObject({ ok: z.boolean() }),
+  },
+  'runs.log.unsubscribe': {
+    input: z.strictObject({ runId: RunId }),
+    output: z.strictObject({ ok: z.boolean() }),
+  },
   'usage.get': { input: None, output: UsageView },
 } as const;
 
@@ -68,6 +81,8 @@ export type PushPayloads = {
   'runs.changed': Record<string, never>;
   /** That run's files changed: an open detail page refetches. */
   'run.changed': { runId: string };
+  /** New complete events in a subscribed run's events.jsonl. */
+  'run.log': LogPush;
   /** `usage.json` changed. */
   'usage.changed': Record<string, never>;
   /** A native menu item: navigate. */
@@ -85,7 +100,13 @@ export const MENU_ACTIONS = [
 ] as const;
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 export type PushChannel = keyof PushPayloads;
-export const PUSH_CHANNELS = ['runs.changed', 'run.changed', 'usage.changed', 'app.menu'] as const;
+export const PUSH_CHANNELS = [
+  'runs.changed',
+  'run.changed',
+  'run.log',
+  'usage.changed',
+  'app.menu',
+] as const;
 
 // ── the typed bridge: `window.advpipe.<ns>.<name>(input) => Promise<Result<output>>` ──────────────
 type Fn<C extends IpcChannel> = (input: IpcInput<C>) => Promise<Result<IpcOutput<C>>>;

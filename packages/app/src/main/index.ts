@@ -3,7 +3,7 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, protocol, session } from 'electron';
 import { IPC_TABLE } from '@advpipe/contracts';
-import { loadRunHead, loadRuns, loadUsage, preflight } from '@advpipe/engine';
+import { loadContext, loadDetail, loadRuns, loadUsage, preflight } from '@advpipe/engine';
 import { APP_ORIGIN, createHandlers, dispatch } from './ipc.js';
 import { createLogger } from './log.js';
 import { installMenu } from './menu.js';
@@ -87,7 +87,8 @@ if (!app.requestSingleInstanceLock()) {
 
     const handlers = createHandlers({
       prefs,
-      engine: { loadRuns, loadRunHead, loadUsage, preflight },
+      engine: { loadRuns, loadDetail, loadContext, loadUsage, preflight },
+      logs: windows.logs,
       windows,
       exists: isDirectory,
       defaultItemsDir: 'work-items',

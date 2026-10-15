@@ -34,10 +34,12 @@ function setup() {
     },
     engine: {
       loadRuns: vi.fn(() => emptyList),
-      loadRunHead: vi.fn(() => null),
+      loadDetail: vi.fn(() => null),
+      loadContext: vi.fn(async () => null),
       loadUsage: vi.fn(),
       preflight: vi.fn(),
     },
+    logs: { subscribe: vi.fn(), unsubscribe: vi.fn() },
     windows: { pick: vi.fn(async () => true), open: vi.fn(async () => true) },
     exists: () => true,
     defaultItemsDir: 'work-items',
@@ -78,6 +80,10 @@ describe('IPC handlers', () => {
       ['runs.detail', { runId: '' }],
       ['runs.detail', { runId: 'x'.repeat(101) }],
       ['runs.detail', { runId: 7 }],
+      ['runs.context', { runId: '../x' }],
+      ['runs.log.subscribe', { runId: 'r1', offset: -1 }],
+      ['runs.log.subscribe', { runId: 'a/b', offset: 0 }],
+      ['runs.log.unsubscribe', { runId: '..' }],
       ['app.prefs.set', { theme: 'neon' }],
       ['app.prefs.set', { recent_repos: ['/etc'] }], // main manages the recent list
       ['app.repo.openRecent', { index: -1 }],
@@ -95,7 +101,9 @@ describe('IPC handlers', () => {
       );
     }
     expect(deps.engine.loadRuns).not.toHaveBeenCalled();
-    expect(deps.engine.loadRunHead).not.toHaveBeenCalled();
+    expect(deps.engine.loadDetail).not.toHaveBeenCalled();
+    expect(deps.engine.loadContext).not.toHaveBeenCalled();
+    expect(deps.logs.subscribe).not.toHaveBeenCalled();
     expect(deps.engine.preflight).not.toHaveBeenCalled();
     expect(deps.engine.loadUsage).not.toHaveBeenCalled();
     expect(deps.windows.pick).not.toHaveBeenCalled();
@@ -118,6 +126,8 @@ describe('IPC handlers', () => {
     for (const [channel, input] of [
       ['runs.list', { show: 'all' }],
       ['runs.detail', { runId: 'r1' }],
+      ['runs.context', { runId: 'r1' }],
+      ['runs.log.subscribe', { runId: 'r1', offset: 0 }],
       ['app.preflight', {}],
       ['usage.get', {}],
     ] as const) {
@@ -143,7 +153,7 @@ describe('IPC handlers', () => {
 
   it('shows a person-readable error for an unreadable run, and hides unexpected ones', async () => {
     const { deps, handlers } = setup();
-    deps.engine.loadRunHead.mockImplementationOnce(() => {
+    deps.engine.loadDetail.mockImplementationOnce(() => {
       throw new Error('EACCES: permission denied');
     });
     expect(await call(handlers, 'runs.detail', { runId: 'r1' })).toEqual({
@@ -162,6 +172,27 @@ describe('IPC handlers', () => {
     const r = await dispatch(handlers, 'usage.get', {}, ours, null, onError);
     expect(r.ok === false && r.error).not.toMatch(/secret/);
     expect(onError).toHaveBeenCalled();
+  });
+
+  it('log subscriptions and the context tab use the window’s own repo and window id', async () => {
+    const { deps, handlers } = setup();
+    expect(await call(handlers, 'runs.log.subscribe', { runId: 'r1', offset: 12 })).toEqual({
+      ok: true,
+      value: { ok: true },
+    });
+    expect(deps.logs.subscribe).toHaveBeenCalledWith(ours.windowId, REPO, 'r1', 12);
+    await call(handlers, 'runs.log.unsubscribe', { runId: 'r1' });
+    expect(deps.logs.unsubscribe).toHaveBeenCalledWith(ours.windowId, 'r1');
+    expect(await call(handlers, 'runs.context', { runId: 'r1' })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(deps.engine.loadContext).toHaveBeenCalledWith(REPO, 'r1');
+    deps.engine.loadContext.mockRejectedValueOnce(new Error('bad run.json'));
+    expect(await call(handlers, 'runs.context', { runId: 'r1' })).toEqual({
+      ok: false,
+      error: "Can't read this run: bad run.json",
+    });
   });
 
   it('parses its own output: a handler cannot leak extra fields', async () => {

@@ -11,6 +11,7 @@ import {
   type LoginKind,
   type Meter,
   type RateLimitSnapshot,
+  type RunState,
   type UsageView,
 } from '@advpipe/contracts';
 import { likelyConsole, loadCache } from '../core/usage.js';
@@ -71,4 +72,10 @@ export function loadUsage(repo: string, now: Date = new Date()): UsageView {
   const console = cache.login === 'console' || (cache.login === 'unknown' && likelyConsole(repo));
   const login: LoginKind = console && cache.login === 'unknown' ? 'console' : cache.login;
   return buildUsageView(login, cache.windows, console, now);
+}
+
+/** From the run's own saved snapshots. A run that hasn't learned its login yet falls back to what the repo's cache says about whether it will cost real money. */
+export function forRun(repo: string, state: RunState, now: Date = new Date()): UsageView {
+  const console = state.auth === 'console' || (state.auth === 'unknown' && likelyConsole(repo));
+  return buildUsageView(state.auth, state.rate_limits, console, now);
 }

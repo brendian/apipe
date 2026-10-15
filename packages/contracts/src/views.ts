@@ -44,12 +44,6 @@ export const Starting = z.strictObject({
 });
 export type Starting = z.infer<typeof Starting>;
 
-/** M7's `runs.detail` answer for a run that has a run.json: its list row. M8 widens this. */
-export const RunHead = z.strictObject({ kind: z.literal('run'), row: RunRow });
-export type RunHead = z.infer<typeof RunHead>;
-export const RunDetailOut = z.union([RunHead, Starting]).nullable();
-export type RunDetailOut = z.infer<typeof RunDetailOut>;
-
 export const Meter = z.strictObject({
   window: z.string(),
   label: z.string(), // "5-hour"

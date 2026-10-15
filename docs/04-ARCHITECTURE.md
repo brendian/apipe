@@ -197,7 +197,7 @@ are async unless noted; all take absolute, already-validated repo paths; all thr
 loadRuns(repo, show?): RunList                      // rows newest first (for the filter) + counts + unreadable ids
 loadDetail(repo, runId): RunDetail | null           // throws on unreadable run.json (so the UI shows the message)
 loadStarting(repo, runId): Starting | null
-loadRunHead(repo, runId): RunHead | Starting | null   // M7's `runs.detail`; throws on an unreadable run.json
+
 preflight(repo, itemsDir): Preflight                 // git, repo, bundled Claude, login, items folder
 loadContext(repo, runId): ContextView               // Spec & context tab
 loadItems(repo, itemsDir): ItemList
@@ -250,9 +250,9 @@ text, never HTML).
 | `app.repo.openRecent` / `app.repo.forgetRecent` | `{index}` | opens that repo (focusing its window if open; a window with no repo becomes that repo's window) / removes it from the list (`PrefsView`) |
 | `app.preflight` | – | `{git:{ok,version}, repo:{ok,is_git,has_commit,branch,dirty}, claude:{ok,login,version}, items_dir:{path,exists}}`; each part also has `level` (`ok`/`warn`/`bad`) and `text`, the plain-words line the Welcome page shows (snake_case, like every contract) |
 | `runs.list` | `{show: 'all'\|'running'\|'needs_you'\|'complete'}` | `RunList` (`rows` for that filter, `counts` for all four, `unreadable`) |
-| `runs.detail` | `{runId}` | `RunDetail \| Starting \| null`: null if the directory is missing; an **error** ("Can't read this run: …") if run.json can't be read. *M7 answers `RunHead` (the list row) in place of `RunDetail`; M8 widens it* |
-| `runs.context` | `{runId}` | `ContextView` |
-| `runs.log.subscribe` / `runs.log.unsubscribe` | `{runId, offset}` | `{ok}` (then pushes, §5.2) |
+| `runs.detail` | `{runId}` | `RunDetail \| Starting \| null`: null if the directory is missing; an **error** ("Can't read this run: …") if run.json can't be read. *`loadDetail` (M8)* |
+| `runs.context` | `{runId}` | `ContextView \| null` |
+| `runs.log.subscribe` / `runs.log.unsubscribe` | `{runId, offset}` / `{runId}` | `{ok}` (subscribing also sends what is already there; then pushes, §5.2) |
 | `usage.get` | – | `UsageView` (the login and usage line: last known, with its age) |
 | `items.list` | – | `ItemList` |
 | `items.read` | `{path}` | `ItemDraft` |

@@ -92,7 +92,7 @@ test('open a repo: empty list, then a scripted run appears live and completes', 
     // The row opens the run's page, which says where the run is.
     await row.click();
     await expect(page.getByRole('heading', { name: 'Add clamp' })).toBeVisible();
-    await expect(page.getByText(request.run_id)).toBeVisible();
+    await expect(page.locator('dd.mono', { hasText: request.run_id })).toBeVisible();
     expect(problems).toEqual([]);
   } finally {
     await app.close();

@@ -296,3 +296,218 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* Run page (M8) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.muted {
+  color: var(--text-muted);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.tabs a {
+  padding: var(--space-1) var(--space-3);
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.tabs a[aria-current='page'] {
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.cost-meter meter {
+  width: 100%;
+  max-width: 14rem;
+  display: block;
+}
+.usage-meters {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+.usage-meters .warn {
+  color: var(--warn);
+}
+.timeline-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.timeline-strip li {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  background: var(--surface);
+}
+.timeline-strip .step-current {
+  border-color: var(--info);
+}
+.timeline-strip .step-stopped {
+  border-color: var(--warn);
+}
+.step {
+  margin: var(--space-4) 0;
+}
+details.round,
+.log-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  margin: var(--space-2) 0;
+}
+details.round > summary,
+.log-panel > summary {
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+.round-body {
+  padding: 0 var(--space-3) var(--space-3);
+}
+.finding {
+  border-left: 4px solid var(--border);
+  padding: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
+  background: var(--surface);
+}
+.finding-blocking {
+  border-left-color: var(--bad);
+}
+.finding-minor {
+  border-left-color: var(--warn);
+}
+.finding .claim {
+  font-weight: 600;
+  margin: var(--space-1) 0;
+}
+.scroll-box,
+.diff-lines {
+  max-height: 24rem;
+  overflow: auto;
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  white-space: pre;
+}
+.diff-lines span {
+  display: block;
+  color: var(--diff-ctx);
+}
+.diff-lines .diff-add {
+  background: var(--diff-add-bg);
+  color: var(--text);
+}
+.diff-lines .diff-del {
+  background: var(--diff-del-bg);
+  color: var(--text);
+}
+.diff-lines .diff-hunk {
+  background: var(--diff-hunk-bg);
+  color: var(--text);
+}
+.diff-lines .diff-meta {
+  font-weight: 600;
+  color: var(--text);
+}
+.gates ul {
+  list-style: none;
+  padding: 0;
+}
+.gates li {
+  margin: var(--space-1) 0;
+}
+.log {
+  max-height: 20rem;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  font-size: 0.9rem;
+}
+.log .log-usage {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.command-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-1) 0 var(--space-3);
+}
+.command-box code {
+  flex: 1 1 20rem;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  font-family: var(--font-mono);
+}
+.next-steps {
+  padding-left: var(--space-5);
+}
+.markdown {
+  overflow-wrap: anywhere;
+}
+.markdown pre,
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+}
+.markdown pre {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border-radius: var(--radius-1);
+}
+.markdown .align-center {
+  text-align: center;
+}
+.markdown .align-right {
+  text-align: right;
+}
+.markdown .task-ac,
+.markdown .task-oq,
+.markdown .task-ans {
+  border-bottom: 2px solid var(--border);
+}
+.markdown li.ac {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-4));
+}
+.markdown li.blocking {
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn);
+  padding-left: var(--space-2);
+}
+.ctx-block {
+  margin: var(--space-5) 0;
+}
+.ctx-block table {
+  border-collapse: collapse;
+}
+.ctx-block th,
+.ctx-block td {
+  text-align: left;
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}

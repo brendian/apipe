@@ -296,10 +296,10 @@ step. Step states and their labels/explanations (from `detail.STEP_STATES`):
 | done | done | Finished |
 | current | in progress | An agent or check is working on this step right now |
 | stopped | stopped here | The run stopped during this step; the report says why |
-| pending | not yet | Not started yet (a resumable run / waiting run) |
+| pending | not yet | Not started yet |
 | not_reached | not reached | The run ended before this step |
 | not_needed | not needed | No findings were left open, so the arbiter wasn't called |
-| if_needed | if needed | The arbiter, for a run that can still continue |
+| if_needed | only if needed | Runs only if findings are left open after a stage |
 
 Derivation (port `ui/detail.py` `_step_state`, `_active_stage`, `build_timeline`): a mainline step is
 **done** iff its commit key (`COMMIT_KEYS`: SPEC→`spec`, SOLO→`solo`, TESTS→`tests`, CODE→`code`,
