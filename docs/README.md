@@ -1,7 +1,7 @@
 # Documentation index
 
 Everything needed to rebuild `advpipe` as a TypeScript desktop app, without access to the author and
-without guessing. **Status: docs complete; M0–M8 built (the engine, the app shell, the runs list and the run detail page). Next: [11-MILESTONES](11-MILESTONES.md) → M9.**
+without guessing. **Status: docs complete; M0–M9 built (the engine, the app shell, the runs list, the run detail page, new run and work items). Next: [11-MILESTONES](11-MILESTONES.md) → M10.**
 
 ## Reading order
 

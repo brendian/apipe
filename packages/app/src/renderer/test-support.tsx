@@ -2,6 +2,10 @@ import { vi } from 'vitest';
 import {
   Prefs,
   type AdvpipeApi,
+  type DraftChecks,
+  type DraftView,
+  type ItemList,
+  type RunPlan,
   type Preflight,
   type PrefsView,
   type PushChannel,
@@ -105,7 +109,13 @@ export const listOf = (rows: RunRow[], unreadable: RunList['unreadable'] = []): 
 });
 
 export const prefsView = (over: Partial<PrefsView> = {}): PrefsView => ({
-  ...{ theme: 'system', notifications: true, run_filter: 'all', recent: [] },
+  ...{
+    theme: 'system',
+    notifications: true,
+    run_filter: 'all',
+    items_dir: 'work-items',
+    recent: [],
+  },
   ...over,
 });
 
@@ -146,6 +156,65 @@ const quietUsage: UsageView = {
   meters: [],
 };
 
+export const itemList = (over: Partial<ItemList> = {}): ItemList => ({
+  items_dir: 'work-items',
+  folder_exists: true,
+  groups: [],
+  skipped: [],
+  git_known: true,
+  ...over,
+});
+
+export const draftOf = (over: Partial<DraftView> = {}): DraftView => ({
+  rel: 'a.md',
+  name: '',
+  config: '',
+  body: 'Add clamp',
+  base: 'b'.repeat(64),
+  problem: null,
+  level: '',
+  security_scan: '',
+  scan_failures: '',
+  bypass_questions: '',
+  last_run: null,
+  ...over,
+});
+
+export const checksOf = (over: Partial<DraftChecks> = {}): DraftChecks => ({
+  checks: [],
+  branch: 'advpipe/add-clamp',
+  ok: true,
+  preview_html: '<p>Add clamp</p>',
+  ...over,
+});
+
+export const planOf = (over: Partial<RunPlan> = {}): RunPlan => ({
+  errors: [],
+  warnings: [],
+  ok: true,
+  budget: 15,
+  budget_text: '15.00',
+  config_label: 'pipeline.toml',
+  branch: 'advpipe/add-clamp',
+  item_name: '',
+  item_config: '',
+  level: 'tests',
+  inherited_level: 'tests',
+  level_source: 'pipeline.toml',
+  scan: false,
+  scan_default: false,
+  scan_source: "the level's default",
+  failures: 'ask',
+  inherited_failures: 'ask',
+  bypass: false,
+  inherited_bypass: false,
+  agents: 4,
+  calls: [4, 11],
+  dropped: ['No standards review'],
+  shown_text: 'tests;off;ask;ask',
+  ...over,
+});
+
 export type Stub = {
   api: AdvpipeApi;
   emit: <C extends PushChannel>(channel: C, payload: PushPayloads[C]) => void;
@@ -169,6 +238,9 @@ export function makeApi(
     prefs?: PrefsView;
     preflight?: Preflight;
     usage?: UsageView;
+    /** Replacements for the work-items and new-run channels, by namespace. */
+    items?: Record<string, unknown>;
+    newrun?: Record<string, unknown>;
   } = {},
 ): Stub {
   const listeners = new Map<string, Set<(p: unknown) => void>>();
@@ -201,6 +273,22 @@ export function makeApi(
       log: { subscribe, unsubscribe },
     },
     usage: { get: async () => ok(over.usage ?? quietUsage) },
+    items: {
+      list: async () => ok(itemList()),
+      read: async () => ok(draftOf()),
+      check: async () => ok(checksOf()),
+      create: async () => ok({ rel: 'a.md' }),
+      save: async () => ok({ changed: true }),
+      rename: async () => ok({ rel: 'b.md' }),
+      deleteInfo: async () => ok({ rel: 'a.md', git: '', items_dir: 'work-items' }),
+      delete: async () => ok({ deleted: 'a.md' }),
+      ...over.items,
+    },
+    newrun: {
+      plan: async () => ok(planOf()),
+      start: async () => ok({ runId: '20261015-100000-abcdef' }),
+      ...over.newrun,
+    },
     on: (channel: string, cb: (p: unknown) => void) => {
       const set = listeners.get(channel) ?? new Set();
       set.add(cb);

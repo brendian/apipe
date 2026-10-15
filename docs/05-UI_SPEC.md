@@ -450,6 +450,7 @@ dropped[], shown_text, budget_text, start_request?}`:
   Console credits: it can spend up to $15.00 of real money." Subscription: no warning; a usage warning if a
   window is `allowed_warning`/`rejected`.
 - On success: `newrun.start` → `{runId}` → navigate to `/runs/<id>` (starting-up panel).
+- *(Built, M9.)* The window sends the form and `shown`/`budget_shown`; the host builds the start request from its own plan. What it records: the level always; `security_scan` only when someone set it (the form's On/Off, or the work item's or config's value), else `null` (the level's default); `scan_failures` and `bypass_questions` as their effective values; `name` as the form's, else the work item's. The level, the policy and the checkbox follow the chosen item until the person touches them; *Start* is disabled while the summary is being re-worked (a stale summary can't be started) and while the setup checks fail.
 
 ### 5.5 Work items (`/items`)
 
@@ -462,7 +463,7 @@ state** chip, and actions **Run**, **Edit**, **Rename**, **Delete**.
   `untracked` → "not in git" ("This file has never been committed."), `modified` → "uncommitted" ("Changed
   since the last commit."), `ignored` → "ignored" ("Ignored by git (.gitignore), so it is never
   committed."), clean → no chip. A folder's state covers its files. If git can't tell: no chips.
-  **The app never commits.**
+  **The app never commits.** The owner ruled the folder is a specific one (default `work-items`, never the repo root) and git-ignored: creating an item adds it to `.git/info/exclude` (local, no tracked file changes), so new items normally show "ignored".
 - The list walks the folder without following symlinked folders and skipping hidden ones; files whose
   path `itemPath` refuses are listed by name only, "not manageable here".
 - Empty state: "No work items yet. A work item is a markdown file describing one task. **Create your
@@ -491,6 +492,7 @@ state** chip, and actions **Run**, **Edit**, **Rename**, **Delete**.
 - A file that doesn't parse opens in the editor with what could be salvaged (`salvageWorkItem`) and the
   parse error shown, so it can be fixed.
 - Max file size 200 000 bytes; max folder depth 4; path rules in [08-SECURITY](08-SECURITY.md) §5.
+- *(Built, M9.)* Create and Save re-run the checks in the host and refuse with "Not saved: fix the problems marked below first." even if the window let the click through; the editor's *Save* is disabled while a check says "Problem". Save needs the digest it loaded: no digest, no save. The work-items folder is a per-repo setting (*Folder: change…* on the Work items page); it must be inside the repo and not hidden, and the repo itself is refused. The original's folder and config suggestions (`<datalist>`) are not built. There is no "run it from a terminal" command: *Run…* opens New run.
 
 ### 5.7 Confirmation pages
 

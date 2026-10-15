@@ -17,7 +17,11 @@ export type Route =
   | { name: 'new-run'; item: string | null }
   | { name: 'run'; id: string }
   | { name: 'run-context'; id: string }
-  | { name: 'items' }
+  | { name: 'items'; notice: string | null }
+  | { name: 'item-new'; folder: string }
+  | { name: 'item-edit'; path: string; notice: string | null }
+  | { name: 'item-rename'; path: string }
+  | { name: 'item-delete'; path: string }
   | { name: 'help' }
   | { name: 'not-found'; path: string };
 
@@ -30,14 +34,30 @@ export function parseRoute(path: string): Route {
   if (a === 'boot' && parts.length === 1) return { name: 'boot' };
   if (a === 'welcome' && parts.length === 1) return { name: 'welcome' };
   if (a === 'help' && parts.length === 1) return { name: 'help' };
-  if (a === 'items') return { name: 'items' };
+  const q = new URLSearchParams(query);
+  if (a === 'items' && parts.length === 1) return { name: 'items', notice: q.get('notice') };
+  if (a === 'items' && b === 'new' && parts.length === 2) {
+    return { name: 'item-new', folder: q.get('folder') ?? '' };
+  }
+  if (a === 'items' && parts.length === 2 && q.has('path')) {
+    const path = q.get('path') ?? '';
+    if (b === 'edit') return { name: 'item-edit', path, notice: q.get('notice') };
+    if (b === 'rename') return { name: 'item-rename', path };
+    if (b === 'delete') return { name: 'item-delete', path };
+  }
   if (a === 'runs' && b === 'new' && parts.length === 2) {
-    return { name: 'new-run', item: new URLSearchParams(query).get('item') };
+    return { name: 'new-run', item: q.get('item') };
   }
   if (a === 'runs' && b && parts.length === 2) return { name: 'run', id: b };
   if (a === 'runs' && b && c === 'context' && parts.length === 3)
     return { name: 'run-context', id: b };
   return { name: 'not-found', path: pathname };
+}
+
+/** `/items/edit` + `{path: 'a b.md'}` → `/items/edit?path=a+b.md`: values are encoded, never joined raw. */
+export function withQuery(path: string, query: Record<string, string>): string {
+  const q = new URLSearchParams(query).toString();
+  return q ? `${path}?${q}` : path;
 }
 
 type RouterApi = {

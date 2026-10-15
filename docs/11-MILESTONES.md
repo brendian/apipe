@@ -200,7 +200,9 @@ states, panel-state persistence.
 
 **Tests:** read-model tests for every status × level; hostile-string battery on every text surface; live-update test (events appended while the page is open); e2e: watch a run complete.
 
-## M9 · New run and work items
+## M9 · New run and work items  ✔ done 2026-10-15
+
+*(Built. `planRun`/`startNewRun` are `engine/src/readmodel/plan-run.ts`; the item file operations and the path gate are `readmodel/items.ts` (one file, with `ItemError`/`NewRunError`, the errors whose messages are shown as they are). Channels added: `items.list/read/check/create/save/rename/deleteInfo/delete`, `newrun.plan/start`, and `items_dir` on `app.prefs.set` (checked to be inside the repo before it is stored; the Work items page has a "Folder: change…" control). Pages: Work items, the editor (new and edit, live preview and checks), rename and delete confirmation pages, New run (Radix slider). Not built, by design: the folder/config `<datalist>` suggestions of the original, the `advpipe run …` command box on the editor (no CLI), `g r`-style shortcuts (M11). `Save` is also disabled while a check says "Problem", and the host re-runs the checks and refuses anyway. The window never sees the `StartRun`: `newrun.start` takes the form plus `shown`/`budget_shown` and the host builds `start.json` from its own plan (see 05 §5.4 for the scan rule).)*
 
 **Read:** 05 §5.4–§5.7, 02 §16; `ui/actions.py (plan_run) items.py`; `test_ui_actions (plan), test_ui_items,
 test_ui_levels`.

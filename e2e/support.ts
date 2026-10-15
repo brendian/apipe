@@ -27,11 +27,12 @@ export function makeRepo(): string {
 /** The app, on `repo` (or with no repo), with its own preferences folder and a hidden window. */
 export async function launch(
   repo?: string,
+  env: Record<string, string> = {},
 ): Promise<{ app: ElectronApplication; page: Page; problems: string[]; userData: string }> {
   const userData = scratch();
   const app = await electron.launch({
     args: [appDir, ...(repo ? [repo] : [])],
-    env: { ...process.env, ADVPIPE_E2E: '1', ADVPIPE_USER_DATA: userData },
+    env: { ...process.env, ADVPIPE_E2E: '1', ADVPIPE_USER_DATA: userData, ...env },
   });
   const page = await app.firstWindow();
   const problems: string[] = [];

@@ -2,6 +2,16 @@ import { z } from 'zod';
 import { isValidRunId } from './primitives.js';
 import { ContextView, RunDetailOut, type LogPush } from './detail.js';
 import {
+  DeleteInfo,
+  DraftChecks,
+  DraftInput,
+  DraftView,
+  ItemList,
+  RunForm,
+  RunPlan,
+  StartForm,
+} from './items.js';
+import {
   FilterKeySchema,
   Preflight,
   PrefsView,
@@ -31,6 +41,8 @@ export const IPC_TABLE = {
       theme: ThemePref.optional(),
       notifications: z.boolean().optional(),
       run_filter: FilterKeySchema.optional(),
+      /** The work-items folder for this window's repo, relative to it (main checks it's inside). */
+      items_dir: z.string().min(1).max(300).optional(),
     }),
     output: PrefsView,
   },
@@ -69,6 +81,25 @@ export const IPC_TABLE = {
     output: z.strictObject({ ok: z.boolean() }),
   },
   'usage.get': { input: None, output: UsageView },
+  // Work items (docs/05 §5.5-§5.6). Paths are relative to the work-items folder, and the engine's
+  // one path gate decides whether one is allowed.
+  'items.list': { input: None, output: ItemList },
+  'items.read': { input: z.strictObject({ rel: z.string().max(300) }), output: DraftView },
+  'items.check': { input: DraftInput, output: DraftChecks },
+  'items.create': { input: DraftInput, output: z.strictObject({ rel: z.string() }) },
+  'items.save': { input: DraftInput, output: z.strictObject({ changed: z.boolean() }) },
+  'items.rename': {
+    input: z.strictObject({ rel: z.string().max(300), new_rel: z.string().max(300) }),
+    output: z.strictObject({ rel: z.string() }),
+  },
+  'items.deleteInfo': { input: z.strictObject({ rel: z.string().max(300) }), output: DeleteInfo },
+  'items.delete': {
+    input: z.strictObject({ rel: z.string().max(300), confirm: z.literal(true) }),
+    output: z.strictObject({ deleted: z.string() }),
+  },
+  // New run (docs/05 §5.4): plan, then start only if what was shown is still what is computed.
+  'newrun.plan': { input: RunForm, output: RunPlan },
+  'newrun.start': { input: StartForm, output: z.strictObject({ runId: RunId }) },
 } as const;
 
 export type IpcChannel = keyof typeof IPC_TABLE;

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Prefs, type PrefsView } from '@advpipe/contracts';
+import { Prefs, SETTINGS_CHANGED, type Preflight, type PrefsView } from '@advpipe/contracts';
+import { ItemPathError, NewRunError } from '@advpipe/engine';
 import {
   createHandlers,
   dispatch,
@@ -16,6 +17,11 @@ const ours: SenderInfo = {
   windowId: 3,
 };
 const welcome: SenderInfo = { ...ours, repo: null };
+
+const goodPreflight = {
+  git: { ok: true, text: '' },
+  repo: { ok: true, text: '' },
+} as unknown as Preflight;
 
 const emptyList = {
   rows: [],
@@ -37,7 +43,24 @@ function setup() {
       loadDetail: vi.fn(() => null),
       loadContext: vi.fn(async () => null),
       loadUsage: vi.fn(),
-      preflight: vi.fn(),
+      preflight: vi.fn(async () => goodPreflight),
+      resolveItemsDir: vi.fn((repo: string, rel: string) => `${repo}/${rel}`),
+      loadItems: vi.fn(async () => ({
+        items_dir: 'work-items',
+        folder_exists: false,
+        groups: [],
+        skipped: [],
+        git_known: true,
+      })),
+      readDraft: vi.fn(),
+      checkDraft: vi.fn(),
+      createItem: vi.fn(async (_r: string, _d: string, input: { rel?: string }) => input.rel ?? ''),
+      saveItem: vi.fn(async () => true),
+      renameItem: vi.fn((_d: string, _rel: string, to: string) => to),
+      itemDeleteInfo: vi.fn(),
+      deleteItem: vi.fn(),
+      planRun: vi.fn(),
+      startNewRun: vi.fn(async () => ({ runId: '20261015-100000-abcdef' })),
     },
     logs: { subscribe: vi.fn(), unsubscribe: vi.fn() },
     windows: { pick: vi.fn(async () => true), open: vi.fn(async () => true) },
@@ -92,6 +115,21 @@ describe('IPC handlers', () => {
       ['app.repo.pick', { path: '/etc' }], // the picker takes no path
       ['app.preflight', { repo: '/etc' }],
       ['usage.get', { x: 1 }],
+      ['items.read', { rel: 'x'.repeat(301) }],
+      ['items.read', { rel: '../x.md', repo: '/etc' }],
+      ['items.save', { rel: 'a.md', body: 'x'.repeat(200_001) }],
+      ['items.save', { rel: 'a.md', body: 'x', itemsDir: '/etc' }], // a window can't name the folder
+      ['items.create', { rel: 'a.md', level: 5 }],
+      ['items.rename', { rel: 'a.md' }],
+      ['items.delete', { rel: 'a.md' }], // no confirm
+      ['items.delete', { rel: 'a.md', confirm: false }],
+      ['items.delete', { rel: 'a.md', confirm: 'yes' }],
+      ['items.deleteInfo', { rel: 5 }],
+      ['app.prefs.set', { items_dir: '' }],
+      ['newrun.plan', { source: 'item', level: 5 }],
+      ['newrun.plan', { repo: '/etc' }],
+      ['newrun.start', { source: 'task', task: 'x' }], // nothing was shown
+      ['newrun.start', { shown: 'full;on;ask;ask', budget_shown: '15.00', config_path: '/etc/x' }],
       ['app.nope', {}],
       ['constructor', {}],
     ];
@@ -109,6 +147,10 @@ describe('IPC handlers', () => {
     expect(deps.windows.pick).not.toHaveBeenCalled();
     expect(deps.windows.open).not.toHaveBeenCalled();
     expect(deps.prefs.update).not.toHaveBeenCalled();
+    for (const fn of Object.values(deps.engine).filter((f) => 'mock' in f)) {
+      // Everything above that was a spy and is not one of the earlier checked ones stayed quiet.
+      if (fn !== deps.engine.preflight) expect(fn).not.toHaveBeenCalled();
+    }
   });
 
   it('refuses senders that are not our windows or not our origin', async () => {
@@ -193,6 +235,84 @@ describe('IPC handlers', () => {
       ok: false,
       error: "Can't read this run: bad run.json",
     });
+  });
+
+  it('work items: the folder comes from main (the window’s setting), errors are shown plainly', async () => {
+    const { deps, handlers } = setup();
+    await call(handlers, 'items.list', {});
+    expect(deps.engine.resolveItemsDir).toHaveBeenCalledWith(REPO, 'work-items');
+    expect(deps.engine.loadItems).toHaveBeenCalledWith(REPO, `${REPO}/work-items`);
+
+    // A folder outside the repo is refused before it is stored.
+    deps.engine.resolveItemsDir.mockImplementationOnce(() => {
+      throw new ItemPathError('The work-items folder must be a folder inside this repo.');
+    });
+    expect(await call(handlers, 'app.prefs.set', { items_dir: '../elsewhere' })).toEqual({
+      ok: false,
+      error: 'The work-items folder must be a folder inside this repo.',
+    });
+    expect(deps.prefs.get().items_dir[REPO]).toBeUndefined();
+    await call(handlers, 'app.prefs.set', { items_dir: 'tasks' });
+    expect(deps.prefs.get().items_dir[REPO]).toBe('tasks');
+    await call(handlers, 'items.deleteInfo', { rel: 'a.md' }).catch(() => undefined);
+    expect(deps.engine.itemDeleteInfo).toHaveBeenCalledWith(REPO, `${REPO}/tasks`, 'a.md');
+
+    // Engine path errors are for a person; anything else is hidden.
+    deps.engine.deleteItem.mockImplementationOnce(() => {
+      throw new ItemPathError("'..' isn't allowed in a path");
+    });
+    expect(await call(handlers, 'items.delete', { rel: '../x.md', confirm: true })).toEqual({
+      ok: false,
+      error: "'..' isn't allowed in a path",
+    });
+    expect(await call(handlers, 'items.delete', { rel: 'a.md', confirm: true })).toEqual({
+      ok: true,
+      value: { deleted: 'a.md' },
+    });
+    expect(deps.engine.deleteItem).toHaveBeenLastCalledWith(`${REPO}/tasks`, 'a.md');
+    expect(await call(handlers, 'items.list', {}, welcome)).toMatchObject({ ok: false });
+  });
+
+  it('new run: start passes what was shown to the engine, after the setup checks', async () => {
+    const { deps, handlers } = setup();
+    const form = {
+      source: 'task',
+      task: 'add clamp',
+      shown: 'full;on;ask;ask',
+      budget_shown: '15.00',
+    };
+    expect(await call(handlers, 'newrun.start', form)).toEqual({
+      ok: true,
+      value: { runId: '20261015-100000-abcdef' },
+    });
+    const [repo, , sent, shown, budget] = deps.engine.startNewRun.mock.calls[0] as unknown as [
+      string,
+      string,
+      Record<string, unknown>,
+      string,
+      string,
+    ];
+    expect([repo, shown, budget]).toEqual([REPO, 'full;on;ask;ask', '15.00']);
+    expect(sent).toMatchObject({ source: 'task', task: 'add clamp' });
+    expect(sent).not.toHaveProperty('shown');
+
+    deps.engine.startNewRun.mockRejectedValueOnce(new NewRunError(SETTINGS_CHANGED));
+    expect(await call(handlers, 'newrun.start', form)).toEqual({
+      ok: false,
+      error: SETTINGS_CHANGED,
+    });
+
+    // No git repo with a commit: nothing is started.
+    deps.engine.startNewRun.mockClear();
+    deps.engine.preflight.mockResolvedValueOnce({
+      git: { ok: true, text: '' },
+      repo: { ok: false, text: 'This folder isn’t a git repo.' },
+    } as never);
+    expect(await call(handlers, 'newrun.start', form)).toEqual({
+      ok: false,
+      error: 'This folder isn’t a git repo.',
+    });
+    expect(deps.engine.startNewRun).not.toHaveBeenCalled();
   });
 
   it('parses its own output: a handler cannot leak extra fields', async () => {

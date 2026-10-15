@@ -13,7 +13,16 @@ import {
   type RunList,
   type UsageView,
   type Preflight,
+  type DeleteInfo,
+  type DraftChecks,
+  type DraftInput,
+  type DraftView,
+  type ItemList,
+  type RunForm,
+  type RunPlan,
+  WorkItemError,
 } from '@advpipe/contracts';
+import { ItemError, NewRunError } from '@advpipe/engine';
 import { prefsView } from './prefs.js';
 
 /** Where a call came from: checked before a handler runs, resolved by main, never by the window. */
@@ -54,6 +63,24 @@ export interface Deps {
     loadContext(repo: string, runId: string): Promise<ContextView | null>;
     loadUsage(repo: string): UsageView;
     preflight(repo: string, itemsDir: string): Promise<Preflight>;
+    /** The work-items folder as an absolute path inside the repo; throws ItemPathError. */
+    resolveItemsDir(repo: string, rel: string): string;
+    loadItems(repo: string, itemsDir: string): Promise<ItemList>;
+    readDraft(repo: string, itemsDir: string, rel: string): DraftView;
+    checkDraft(repo: string, input: DraftInput): Promise<DraftChecks>;
+    createItem(repo: string, itemsDir: string, input: DraftInput): Promise<string>;
+    saveItem(repo: string, itemsDir: string, input: DraftInput): Promise<boolean>;
+    renameItem(itemsDir: string, rel: string, newRel: string): string;
+    itemDeleteInfo(repo: string, itemsDir: string, rel: string): Promise<DeleteInfo>;
+    deleteItem(itemsDir: string, rel: string): void;
+    planRun(repo: string, itemsDir: string, form: RunForm): Promise<RunPlan>;
+    startNewRun(
+      repo: string,
+      itemsDir: string,
+      form: RunForm,
+      shown: string,
+      budgetShown: string,
+    ): Promise<{ runId: string }>;
   };
   logs: {
     subscribe(windowId: number, repo: string, runId: string, offset: number): void;
@@ -83,7 +110,25 @@ export function createHandlers(deps: Deps): Handlers {
       throw new UserError(`Can't read this run: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
-  const view = (ctx: Ctx): PrefsView => prefsView(deps.prefs.get(), ctx.repo, deps.exists);
+  const view = (ctx: Ctx): PrefsView =>
+    prefsView(deps.prefs.get(), ctx.repo, deps.exists, deps.defaultItemsDir);
+  /** Engine errors that are written for a person pass through as the message; others don't. */
+  const person = async <T>(run: () => T | Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (e) {
+      if (e instanceof ItemError || e instanceof NewRunError || e instanceof WorkItemError) {
+        throw new UserError(e.message);
+      }
+      throw e;
+    }
+  };
+  /** This window's work-items folder: its setting, checked to be inside the repo every time. */
+  const itemsDirOf = (ctx: Ctx): string => {
+    const repo = need(ctx);
+    const rel = deps.prefs.get().items_dir[repo] ?? deps.defaultItemsDir;
+    return deps.engine.resolveItemsDir(repo, rel);
+  };
 
   return {
     'app.window.info': async (_in, ctx) => ({
@@ -97,6 +142,14 @@ export function createHandlers(deps: Deps): Handlers {
         if (change.notifications !== undefined) p.notifications = change.notifications;
         if (change.run_filter !== undefined) p.run_filter[need(ctx)] = change.run_filter;
       });
+      if (change.items_dir !== undefined) {
+        const repo = need(ctx);
+        // Checked before it is stored: a folder outside the repo is never kept.
+        await person(() => deps.engine.resolveItemsDir(repo, change.items_dir as string));
+        deps.prefs.update((p) => {
+          p.items_dir[repo] = (change.items_dir as string).trim();
+        });
+      }
       return view(ctx);
     },
     'app.repo.pick': async (_in, ctx) => ({ opened: await deps.windows.pick(ctx.windowId) }),
@@ -128,6 +181,38 @@ export function createHandlers(deps: Deps): Handlers {
       return { ok: true };
     },
     'usage.get': async (_in, ctx) => deps.engine.loadUsage(need(ctx)),
+    'items.list': (_in, ctx) => person(() => deps.engine.loadItems(need(ctx), itemsDirOf(ctx))),
+    'items.read': ({ rel }, ctx) =>
+      person(() => deps.engine.readDraft(need(ctx), itemsDirOf(ctx), rel)),
+    'items.check': (draft, ctx) => person(() => deps.engine.checkDraft(need(ctx), draft)),
+    'items.create': async (draft, ctx) => ({
+      rel: await person(() => deps.engine.createItem(need(ctx), itemsDirOf(ctx), draft)),
+    }),
+    'items.save': async (draft, ctx) => ({
+      changed: await person(() => deps.engine.saveItem(need(ctx), itemsDirOf(ctx), draft)),
+    }),
+    'items.rename': async ({ rel, new_rel }, ctx) => ({
+      rel: await person(() => deps.engine.renameItem(itemsDirOf(ctx), rel, new_rel)),
+    }),
+    'items.deleteInfo': ({ rel }, ctx) =>
+      person(() => deps.engine.itemDeleteInfo(need(ctx), itemsDirOf(ctx), rel)),
+    // `confirm: true` is in the input schema: only the confirmation page's button sends it.
+    'items.delete': async ({ rel }, ctx) => {
+      await person(() => deps.engine.deleteItem(itemsDirOf(ctx), rel));
+      return { deleted: rel };
+    },
+    'newrun.plan': (form, ctx) =>
+      person(() => deps.engine.planRun(need(ctx), itemsDirOf(ctx), form)),
+    'newrun.start': async ({ shown, budget_shown, ...form }, ctx) => {
+      const repo = need(ctx);
+      // A working copy needs git and a first commit; say so before anything is made.
+      const checks = await deps.engine.preflight(repo, deps.defaultItemsDir);
+      if (!checks.git.ok) throw new UserError(checks.git.text);
+      if (!checks.repo.ok) throw new UserError(checks.repo.text);
+      return person(() =>
+        deps.engine.startNewRun(repo, itemsDirOf(ctx), form, shown, budget_shown),
+      );
+    },
   };
 }
 

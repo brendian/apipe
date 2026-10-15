@@ -245,7 +245,7 @@ text, never HTML).
 | Channel | Input | Output |
 |---|---|---|
 | `app.window.info` | – | `{repo: {name, path} \| null}`: which repo this window is bound to (the window can't choose it) |
-| `app.prefs.get` / `app.prefs.set` | – / `{theme?, notifications?, run_filter?}` | `PrefsView` (theme, notifications, this repo's runs filter, the recent list as `{index, name, path, exists}`). The recent list and window bounds are managed by main only; `run_filter` is stored for the window's repo |
+| `app.prefs.get` / `app.prefs.set` | – / `{theme?, notifications?, run_filter?, items_dir?}` | `PrefsView` (theme, notifications, this repo's runs filter, this repo's work-items folder `items_dir`, the recent list as `{index, name, path, exists}`). The recent list and window bounds are managed by main only; `run_filter` and `items_dir` (a folder inside the repo, relative to it: main resolves it and refuses anything else before storing it) are stored for the window's repo |
 | `app.repo.pick` | – | opens the native folder dialog **in main**; returns `{opened: path}` (renderer never sees an arbitrary path to act on) |
 | `app.repo.openRecent` / `app.repo.forgetRecent` | `{index}` | opens that repo (focusing its window if open; a window with no repo becomes that repo's window) / removes it from the list (`PrefsView`) |
 | `app.preflight` | – | `{git:{ok,version}, repo:{ok,is_git,has_commit,branch,dirty}, claude:{ok,login,version}, items_dir:{path,exists}}`; each part also has `level` (`ok`/`warn`/`bad`) and `text`, the plain-words line the Welcome page shows (snake_case, like every contract) |
@@ -257,9 +257,10 @@ text, never HTML).
 | `items.list` | – | `ItemList` |
 | `items.read` | `{path}` | `ItemDraft` |
 | `items.check` | `Draft` | `DraftChecks` (the live preview + inline errors) |
-| `items.create` / `items.save` / `items.rename` / `items.delete` | per §05-UI_SPEC §6 | updated `ItemList` entry or `{error}` |
+| `items.create` / `items.save` / `items.rename` | `Draft` / `Draft` (+ `base`, the digest it loaded) / `{rel, new_rel}` | `{rel}` / `{changed}` / `{rel}` (refusals are errors in plain words) |
+| `items.deleteInfo` / `items.delete` | `{rel}` / `{rel, confirm: true}` | what git still has (`DeleteInfo`) / `{deleted}` |
 | `newrun.plan` | `RunForm` | `RunPlan` (summary shown in the dialog) |
-| `newrun.start` | `RunForm & {shown: string, budget_shown: string}` | `{runId}` (refused if what was *shown* is not what is computed now) |
+| `newrun.start` | `RunForm & {shown: string, budget_shown: string}` | `{runId}` (refused if what was *shown* is not what is computed now, or the repo isn't ready: no git, no first commit) |
 | `run.cancel` | `{runId}` | – |
 | `run.resume` | `{runId, budget?}` | `{runId}` |
 | `run.answer` | `{runId, answers, bypass, bypassAll?}` | `{runId}` (records, then spawns resume) |

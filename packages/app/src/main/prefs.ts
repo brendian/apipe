@@ -58,11 +58,13 @@ export function prefsView(
   prefs: Prefs,
   repo: string | null,
   exists: (dir: string) => boolean = existsSync,
+  defaultItemsDir = 'work-items',
 ): PrefsView {
   return {
     theme: prefs.theme,
     notifications: prefs.notifications,
     run_filter: (repo !== null ? prefs.run_filter[repo] : undefined) ?? ('all' satisfies FilterKey),
+    items_dir: (repo !== null ? prefs.items_dir[repo] : undefined) ?? defaultItemsDir,
     recent: prefs.recent_repos.map((p, index) => ({
       index,
       name: path.basename(p) || p,

@@ -13,4 +13,5 @@ export * from './text.js';
 export * from './statuses.js';
 export * from './views.js';
 export * from './detail.js';
+export * from './items.js';
 export * from './ipc.js';

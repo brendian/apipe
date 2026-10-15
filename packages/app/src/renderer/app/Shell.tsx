@@ -15,6 +15,10 @@ export function titleOf(route: Route): string {
     case 'run-context':
       return 'Run';
     case 'items':
+    case 'item-new':
+    case 'item-edit':
+    case 'item-rename':
+    case 'item-delete':
       return 'Work items';
     case 'help':
       return 'Help';
@@ -82,7 +86,7 @@ export function Shell({
 
   const current = (name: string): 'page' | undefined =>
     (name === 'runs' && ['runs', 'run', 'run-context', 'new-run'].includes(route.name)) ||
-    (name === 'items' && route.name === 'items') ||
+    (name === 'items' && route.name.startsWith('item')) ||
     (name === 'help' && route.name === 'help')
       ? 'page'
       : undefined;

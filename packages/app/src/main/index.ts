@@ -3,7 +3,24 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, protocol, session } from 'electron';
 import { IPC_TABLE } from '@advpipe/contracts';
-import { loadContext, loadDetail, loadRuns, loadUsage, preflight } from '@advpipe/engine';
+import {
+  checkDraft,
+  createItem,
+  deleteItem,
+  itemDeleteInfo,
+  loadContext,
+  loadDetail,
+  loadItems,
+  loadRuns,
+  loadUsage,
+  planRun,
+  preflight,
+  readDraft,
+  renameItem,
+  resolveItemsDir,
+  saveItem,
+  startNewRun,
+} from '@advpipe/engine';
 import { APP_ORIGIN, createHandlers, dispatch } from './ipc.js';
 import { createLogger } from './log.js';
 import { installMenu } from './menu.js';
@@ -85,9 +102,32 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
     registerAppProtocol();
 
+    // The Playwright build points workers at the scripted fake-agent entry; a release never does.
+    const workerOptions =
+      e2e && process.env['ADVPIPE_WORKER_ENTRY']
+        ? { workerEntry: process.env['ADVPIPE_WORKER_ENTRY'] }
+        : {};
     const handlers = createHandlers({
       prefs,
-      engine: { loadRuns, loadDetail, loadContext, loadUsage, preflight },
+      engine: {
+        loadRuns,
+        loadDetail,
+        loadContext,
+        loadUsage,
+        preflight,
+        resolveItemsDir,
+        loadItems,
+        readDraft,
+        checkDraft,
+        createItem,
+        saveItem,
+        renameItem,
+        itemDeleteInfo,
+        deleteItem,
+        planRun,
+        startNewRun: (repo, itemsDir, form, shown, budgetShown) =>
+          startNewRun(repo, itemsDir, form, shown, budgetShown, workerOptions),
+      },
       logs: windows.logs,
       windows,
       exists: isDirectory,

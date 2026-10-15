@@ -34,15 +34,15 @@ export async function uniqueBranch(repo: string, name: string): Promise<string> 
   return branch;
 }
 
-/** Keep .advpipe/ out of the user's `git status` without editing tracked files. */
-async function excludeAdvpipeDir(repo: string): Promise<void> {
+/** Keep `pattern` (e.g. `.advpipe/`) out of the user's `git status` without editing tracked files. */
+export async function excludeFromGit(repo: string, pattern: string): Promise<void> {
   let exclude = (await git(repo, 'rev-parse', '--git-path', 'info/exclude')).trim();
   if (!path.isAbsolute(exclude)) exclude = path.join(repo, exclude);
   mkdirSync(path.dirname(exclude), { recursive: true });
   const existing = existsSync(exclude) ? readFileSync(exclude, 'utf-8') : '';
-  if (existing.split(/\r?\n/).includes('.advpipe/')) return;
+  if (existing.split(/\r?\n/).includes(pattern)) return;
   const sep = existing === '' || existing.endsWith('\n') ? '' : '\n';
-  writeFileSync(exclude, `${existing}${sep}.advpipe/\n`);
+  writeFileSync(exclude, `${existing}${sep}${pattern}\n`);
 }
 
 const toplevel = async (repo: string): Promise<string> =>
@@ -64,7 +64,7 @@ export class Workspace {
     const root = await toplevel(repo);
     const dir = path.join(root, '.advpipe', 'worktrees', runId);
     const branch = await withGitLock(root, async () => {
-      await excludeAdvpipeDir(root);
+      await excludeFromGit(root, '.advpipe/');
       const b = await uniqueBranch(root, name ?? runId);
       await git(root, 'worktree', 'add', '-q', '-b', b, dir, 'HEAD');
       return b;

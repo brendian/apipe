@@ -7,6 +7,10 @@ import { PanelStateProvider } from '../state/panels.js';
 import { WindowProvider } from '../state/window.js';
 import { Callout } from '../components/Callout.js';
 import { ContextPage } from '../pages/ContextPage.js';
+import { ItemDelete, ItemRename } from '../pages/ItemConfirm.js';
+import { ItemEdit, ItemNew } from '../pages/ItemEditor.js';
+import { Items } from '../pages/Items.js';
+import { NewRun } from '../pages/NewRun.js';
 import { Placeholder } from '../pages/Placeholder.js';
 import { RunPage } from '../pages/RunPage.js';
 import { Runs } from '../pages/Runs.js';
@@ -25,11 +29,19 @@ function Routes() {
     case 'run':
       return <RunPage runId={route.id} />;
     case 'new-run':
-      return <Placeholder title="New run" />;
+      return <NewRun key={route.item ?? ''} item={route.item} />;
     case 'run-context':
       return <ContextPage runId={route.id} />;
     case 'items':
-      return <Placeholder title="Work items" />;
+      return <Items />;
+    case 'item-new':
+      return <ItemNew folder={route.folder} />;
+    case 'item-edit':
+      return <ItemEdit key={route.path} path={route.path} notice={route.notice} />;
+    case 'item-rename':
+      return <ItemRename path={route.path} />;
+    case 'item-delete':
+      return <ItemDelete path={route.path} />;
     case 'help':
       return <Placeholder title="Help" />;
     default:

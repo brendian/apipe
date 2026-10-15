@@ -116,6 +116,8 @@ export const PrefsView = z.strictObject({
   theme: ThemePref,
   notifications: z.boolean(),
   run_filter: FilterKeySchema,
+  /** This repo's work-items folder, relative to it. */
+  items_dir: z.string(),
   recent: z.array(
     z.strictObject({
       index: z.number().int(),
