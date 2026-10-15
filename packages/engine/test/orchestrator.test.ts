@@ -373,20 +373,6 @@ describe('Tests and Adversarial levels', () => {
     expect(runner.callsFor('standards-reviewer')).toHaveLength(0);
     expect(runner.callsFor('code-critic')).toHaveLength(1);
   });
-
-  it('Basic and Reviewer are refused until M5', () => {
-    for (const level of ['basic', 'reviewer'] as const) {
-      expect(
-        () =>
-          new Orchestrator(
-            atLevel(testConfig(), level),
-            new FakeAgentRunner({}),
-            makeTargetRepo(),
-            'x',
-          ),
-      ).toThrow(/M5/);
-    }
-  });
 });
 
 describe('resume', () => {

@@ -3,6 +3,13 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { RESUMABLE, scanOn, type Config, type RunState } from '@advpipe/contracts';
 import {
+  answersReady,
+  awaitingAnswers,
+  maxSpecPasses,
+  migrate,
+  pendingQuestions,
+} from '../core/answers.js';
+import {
   awaitingDecision,
   decisionReady,
   endedMessage,
@@ -38,12 +45,32 @@ async function checkBranch(repo: string, state: RunState): Promise<void> {
 }
 
 /**
+ * A needs_human run can be resumed only when it stopped on blocking spec questions and every one of
+ * them has been answered (or bypassed).
+ */
+async function checkAnswered(repo: string, runlog: RunLog, state: RunState): Promise<void> {
+  const cap = maxSpecPasses(runlog);
+  if (awaitingAnswers(state, cap)) {
+    const ids = pendingQuestions(state)
+      .map((q) => q.id)
+      .join(', ');
+    throw new NotResumable(
+      `run ${state.run_id} is waiting on answers to ${ids}: answer them on the run's page`,
+    );
+  }
+  if (!answersReady(state, cap)) {
+    throw new NotResumable(`run ${state.run_id} is ${state.status}; nothing to resume`);
+  }
+  await checkBranch(repo, state);
+}
+
+/**
  * The run's state, if it can be resumed now; throws NotResumable saying why not. `lockedForMe`: a
  * run.lock naming this process is expected, because the host wrote this (child) process's pid there
  * before starting it.
  *
- * M4 covers `running`, `error` and `budget_exceeded` runs and a `needs_human` run whose decision is
- * made. Resuming after answers (and `migrate`) arrives with `answers.ts` in M5.
+ * Resumable: `running`, `error` and `budget_exceeded` runs, and a `needs_human` run whose decision is
+ * made or whose blocking questions are all answered (or bypassed).
  */
 export async function checkResumable(
   repo: string,
@@ -52,21 +79,14 @@ export async function checkResumable(
 ): Promise<RunState> {
   const runlog = RunLog.forRun(path.resolve(repo), runId);
   if (!existsSync(runlog.path('run.json'))) throw new NotResumable(`no run ${runId} in ${repo}`);
-  const state = runlog.readState();
+  const state = migrate(runlog.readState());
   if (state.status === 'needs_human') {
     if (state.ended_by) throw new NotResumable(endedMessage(state));
     if (awaitingDecision(state)) throw new NotResumable(waitingMessage(state));
     if (decisionReady(state)) {
       await checkBranch(repo, state);
     } else {
-      const pending = state.questions.filter((q) => !q.answer && !q.bypassed);
-      if (pending.length > 0) {
-        throw new NotResumable(
-          `run ${runId} is waiting on answers to ${pending.map((q) => q.id).join(', ')}: ` +
-            "answer them on the run's page",
-        );
-      }
-      throw new NotResumable(`run ${runId} is ${state.status}; nothing to resume`);
+      await checkAnswered(repo, runlog, state);
     }
   } else if (!RESUMABLE.has(state.status)) {
     throw new NotResumable(`run ${runId} is ${state.status}; nothing to resume`);

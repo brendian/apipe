@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   blockingOpenQuestions,
+  COMMIT_KEYS,
   Config,
   Decision,
   DECISION_CHOICES,
@@ -23,12 +24,20 @@ import {
   type StageResult,
   type Status,
 } from '@advpipe/contracts';
+import {
+  answeredQuestions,
+  awaitingAnswers,
+  awaitingBypass,
+  pendingQuestions,
+  unappliedQuestions,
+  withAnswersSection,
+} from '../core/answers.js';
 import { Budget, BudgetExceeded } from '../core/budget.js';
 import { Cancelled } from '../core/cancel.js';
 import type { Explicit } from '../core/config.js';
 import { DecisionNeeded, pendingChoice, take } from '../core/decisions.js';
-import { emit } from '../core/events.js';
-import { runGates } from '../core/gates.js';
+import { emit, gateStatuses } from '../core/events.js';
+import { gatesLine, runGates } from '../core/gates.js';
 import { renderReport } from '../core/report.js';
 import { RunLog } from '../core/runlog.js';
 import { Workspace } from '../core/workspace.js';
@@ -37,6 +46,8 @@ import {
   adversarialStage,
   arbiterStage,
   ARBITER_NOTE,
+  authorFindingsPrompt,
+  bypassQuestions,
   callAgent,
   checkedFindings,
   Context,
@@ -46,9 +57,13 @@ import {
   NO_ARBITER_NOTE,
   noteScannerSkipped,
   reviewStage,
+  REVIEW_PATHS,
   runGateNames,
   singleReviewStage,
+  soloPrompt,
+  soloRevisionPrompt,
   specPrompt,
+  specRevisionPrompt,
   type StageKind,
 } from '../stages/index.js';
 import { checkResumable, checkSameShape, newRunId } from './resume.js';
@@ -63,20 +78,6 @@ const BUDGET_STAGE: Record<string, string> = {
 
 const blocker = (id: string, criterion: string, claim: string): Finding =>
   Finding.parse({ id, severity: 'blocking', category: 'scope', criterion, claim });
-
-/**
- * The run stopped on blocking spec questions a person can still answer (the report says where).
- * M4 version: `answers.ts` (M5) replaces it with the full rule.
- */
-function waitingOnAnswers(state: RunState, cap: number): boolean {
-  return (
-    state.status === 'needs_human' &&
-    state.stage === 'SPEC' &&
-    !('spec' in state.commits) &&
-    state.spec_passes < cap &&
-    state.questions.some((q) => !q.answer && !q.bypassed)
-  );
-}
 
 export type OrchestratorOptions = {
   runId?: string;
@@ -97,8 +98,9 @@ export type OrchestratorOptions = {
  *
  * Agents are called by this class; they never decide whether a stage runs. Each completed stage is
  * committed and recorded in run.json, so an interrupted run resumes at the first stage that didn't
- * finish. M4 drives levels Tests, Adversarial and Full; the solo levels, answers, Bypass and
- * recording decisions arrive in M5.
+ * finish. All five levels: the solo ones (Basic, Reviewer) run one agent in SOLO; the others SPEC,
+ * TESTS and CODE. Recording a person's answers and decisions happens in the host (`answers.ts`,
+ * `decisions.ts`); this class applies them when the run resumes.
  */
 export class Orchestrator {
   readonly repo: string;
@@ -127,11 +129,6 @@ export class Orchestrator {
     this.keepWorktree = opts.keepWorktree ?? false;
     this.state = opts.state ?? this.newState(opts.runId, workItem, opts.workItemFile ?? '');
     this.runId = this.state.run_id;
-    if (SHAPES[this.state.level].solo || this.state.bypass_questions) {
-      throw new Error(
-        'levels Basic and Reviewer, and Bypass, are not built yet (milestone M5); use Tests, Adversarial or Full',
-      );
-    }
     this.runlog = RunLog.forRun(this.repo, this.runId);
     this.budget = new Budget(
       config.limits.budget_usd_per_task,
@@ -248,7 +245,7 @@ export class Orchestrator {
       this.state.cost_by_stage = { ...this.budget.byStage };
       this.state.calls_by_stage = { ...this.budget.callsByStage };
       this.runlog.writeState(this.state);
-      const waiting = waitingOnAnswers(this.state, this.config.limits.max_rounds_spec);
+      const waiting = awaitingAnswers(this.state, this.config.limits.max_rounds_spec);
       this.runlog.writeText('report.md', renderReport(this.state, { waitingOnAnswers: waiting }));
       // The last event of every process driving the run; not shown in the live log.
       this.emit(
@@ -285,7 +282,7 @@ export class Orchestrator {
 
   /**
    * Stop at a decision point: record what's being asked, leave the worktree exactly as it is, and
-   * wait for a person. Nothing here picks a choice. (Recording the choice is M5.)
+   * wait for a person. Nothing here picks a choice.
    */
   private ask(
     kind: DecisionKind,
@@ -400,27 +397,37 @@ export class Orchestrator {
     this.ctx = ctx;
     const done = state.commits;
     const shape = SHAPES[state.level];
-    const author: Role = 'coder';
-    const kind: StageKind = 'code';
+    const author: Role = shape.solo ? 'solo' : 'coder';
+    const kind: StageKind = shape.solo ? 'solo' : 'code';
     this.applyRetry(ctx);
     this.applyScanChoice(ctx);
 
-    if ('spec' in done) {
-      ctx.taskMd = readFileSync(path.join(ws.path, 'task.md'), 'utf-8');
-    } else if (!(await this.spec(ctx))) {
-      return;
-    }
+    if (shape.solo) {
+      if (!('solo' in done)) {
+        this.enter('SOLO');
+        if (!(await this.solo(ctx))) return;
+        done['solo'] = await ws.commit('advpipe: solo (task.md, tests, code)');
+      } else {
+        ctx.taskMd = readFileSync(path.join(ws.path, 'task.md'), 'utf-8');
+      }
+    } else {
+      if ('spec' in done) {
+        ctx.taskMd = readFileSync(path.join(ws.path, 'task.md'), 'utf-8');
+      } else if (!(await this.spec(ctx))) {
+        return;
+      }
 
-    if (!('tests' in done)) {
-      this.enter('TESTS');
-      if (!(await this.stage(ctx, 'test-author', 'tests'))) return;
-      done['tests'] = await ws.commit('advpipe: tests');
-    }
+      if (!('tests' in done)) {
+        this.enter('TESTS');
+        if (!(await this.stage(ctx, 'test-author', 'tests'))) return;
+        done['tests'] = await ws.commit('advpipe: tests');
+      }
 
-    if (!('code' in done)) {
-      this.enter('CODE');
-      if (!(await this.stage(ctx, 'coder', 'code'))) return;
-      done['code'] = await ws.commit('advpipe: implementation');
+      if (!('code' in done)) {
+        this.enter('CODE');
+        if (!(await this.stage(ctx, 'coder', 'code'))) return;
+        done['code'] = await ws.commit('advpipe: implementation');
+      }
     }
 
     if (shape.review !== 'none' && !('review' in done)) {
@@ -451,7 +458,7 @@ export class Orchestrator {
     const failed = checkedFindings(ctx, gates);
     if (failed.length > 0) {
       ctx.lastGates = gates;
-      this.askRed(failed, 'the final checks', author);
+      this.askRed(failed, 'the final checks', this.fixer(author));
       return;
     }
     state.stage = 'DONE';
@@ -462,11 +469,15 @@ export class Orchestrator {
     }
   }
 
+  private fixer(author: Role): string {
+    return author === 'solo' ? 'solo agent' : author;
+  }
+
   /** The `checks are red` decision point: nothing automatic is left to try. */
   private askRed(
     findings: Finding[],
     where: string,
-    fixer: Role,
+    fixer: string,
     tried = '',
     opts: { stage?: Stage } = {},
   ): void {
@@ -529,7 +540,7 @@ export class Orchestrator {
     state.fix_passes = number;
     d.applied = true;
     if (remaining.length > 0) {
-      this.askRed(remaining, `${state.stage}, after your fix pass`, author);
+      this.askRed(remaining, `${state.stage}, after your fix pass`, this.fixer(author));
       return false;
     }
     return true;
@@ -538,38 +549,83 @@ export class Orchestrator {
   // ----------------------------------------------------------------------------- SPEC
 
   /**
-   * The spec writer's pass. M4: the first pass only; blocking questions stop the run (answering,
-   * revisions and Bypass are M5). False = the run stops.
+   * The spec writer's passes: the first spec, then a revision each time a person (or, under
+   * Bypass, the agent) has answered the blocking questions of the last pass. False = the run stops.
    */
   private async spec(ctx: Context): Promise<boolean> {
     const state = this.state;
     const ws = ctx.workspace;
     const cap = this.config.limits.max_rounds_spec;
     this.enter('SPEC');
-    const number = state.spec_passes + 1;
-    const result = await callAgent(ctx, 'spec-writer', specPrompt(state.work_item), 'spec');
-    state.spec_passes = number;
-    this.runlog.writeText(
-      number === 1 ? 'spec/author.txt' : `spec/pass-${number}/author.txt`,
-      result.text,
-    );
-    const stray = (await ws.changedFiles(state.base_commit)).filter((f) => f !== 'task.md');
-    if (stray.length > 0) {
-      await ws.restore(state.base_commit, stray);
-      state.notes.push(
-        `Spec writer edited files other than task.md; reverted: ${stray.join(', ')}`,
+    const begin = take(state, 'spec_cap', 'begin', 'SPEC');
+    if (begin !== null) return this.beginSpec(ctx, begin);
+    for (;;) {
+      const number = state.spec_passes + 1;
+      // The person chose Bypass for some questions: the spec writer answers them itself, once,
+      // before the revision that uses the answers.
+      await this.bypass(ctx, number);
+      const given = unappliedQuestions(state);
+      let prompt: string;
+      if (given.length > 0) {
+        // The worktree's task.md was wiped when the run was reopened: the previous spec is the
+        // copy in the run directory.
+        const previousMd = this.readRunTaskMd();
+        state.round = number;
+        this.emit(
+          'round',
+          `spec pass ${number}/${cap}: revising task.md with the answers to ` +
+            given.map((q) => q.id).join(', '),
+          { cap },
+        );
+        this.runlog.writeJson(`spec/pass-${number}/answers.json`, answeredQuestions(state));
+        prompt = specRevisionPrompt(state.work_item, previousMd, answeredQuestions(state));
+      } else {
+        prompt = specPrompt(state.work_item);
+      }
+      const result = await callAgent(ctx, 'spec-writer', prompt, 'spec');
+      state.spec_passes = number;
+      for (const q of given) q.applied = true;
+      this.runlog.writeText(
+        number === 1 ? 'spec/author.txt' : `spec/pass-${number}/author.txt`,
+        result.text,
       );
+      const stray = (await ws.changedFiles(state.base_commit)).filter((f) => f !== 'task.md');
+      if (stray.length > 0) {
+        await ws.restore(state.base_commit, stray);
+        state.notes.push(
+          `Spec writer edited files other than task.md; reverted: ${stray.join(', ')}`,
+        );
+      }
+      const taskPath = path.join(ws.path, 'task.md');
+      if (!existsSync(taskPath)) {
+        this.stop('needs_human', [blocker('S1', 'spec', 'spec writer did not produce task.md')]);
+        return false;
+      }
+      let taskMd = readFileSync(taskPath, 'utf-8');
+      if (answeredQuestions(state).length > 0) {
+        // The answers, verbatim, written by code: later agents see them as part of the contract,
+        // and no agent can drop or reword them.
+        taskMd = withAnswersSection(taskMd, state.questions);
+        writeFileSync(taskPath, taskMd);
+      }
+      const pdir = `spec/pass-${number}`;
+      this.setTaskMd(ctx, taskMd, pdir);
+      const outcome = await this.questionStop(ctx, taskMd, number, pdir, false);
+      if (outcome === 'stop') return false;
+      if (outcome === 'again') continue;
+      if (outcome === 'go') {
+        taskMd = withAnswersSection(taskMd, state.questions);
+        writeFileSync(taskPath, taskMd);
+        this.setTaskMd(ctx, taskMd, pdir);
+      }
+      state.commits[COMMIT_KEYS.SPEC] = await ws.commit('advpipe: spec (task.md)');
+      return true;
     }
-    const taskPath = path.join(ws.path, 'task.md');
-    if (!existsSync(taskPath)) {
-      this.stop('needs_human', [blocker('S1', 'spec', 'spec writer did not produce task.md')]);
-      return false;
-    }
-    const taskMd = readFileSync(taskPath, 'utf-8');
-    this.setTaskMd(ctx, taskMd, `spec/pass-${number}`);
-    if (this.questionStop(taskMd, number, cap) === 'stop') return false;
-    state.commits['spec'] = await ws.commit('advpipe: spec (task.md)');
-    return true;
+  }
+
+  private readRunTaskMd(): string {
+    const file = this.runlog.path('task.md');
+    return existsSync(file) ? readFileSync(file, 'utf-8') : '';
   }
 
   private setTaskMd(ctx: Context, taskMd: string, pdir: string): void {
@@ -579,17 +635,51 @@ export class Orchestrator {
   }
 
   /**
-   * What the pass's blocking questions mean for the run: `none`, or `stop` (waiting for answers, or
-   * at the *Begin work?* decision when this was the last allowed pass).
+   * What the blocking questions of the pass just finished (the spec writer's, or the solo agent's)
+   * mean for the run:
+   * - `none`: there are none, carry on;
+   * - `stop`: the run stopped (waiting for answers, or at the *Begin work?* decision);
+   * - `again`: Bypass is on, so the agent answers them and runs another pass;
+   * - `go`: Bypass is on and this was the last pass: the agent has answered them, and the answers
+   *   go into task.md without another revision.
    */
-  private questionStop(taskMd: string, number: number, cap: number): 'none' | 'stop' {
+  private async questionStop(
+    ctx: Context,
+    taskMd: string,
+    number: number,
+    pdir: string,
+    solo: boolean,
+  ): Promise<'none' | 'again' | 'stop' | 'go'> {
+    const state = this.state;
+    const cap = this.config.limits.max_rounds_spec;
     const fresh = this.newQuestions(blockingOpenQuestions(taskMd), number);
     if (fresh.length === 0) return 'none';
     const ids = fresh.map((q) => q.id);
+    const who = solo ? 'solo agent' : 'spec';
+    if (state.bypass_questions) {
+      // Bypass up front (or *Begin work*): nobody is asked. Each pass is still capped; at the cap
+      // the agent's answers go in without another revision and the run begins work. The solo agent
+      // first gets one more pass, because the pass that asked the questions did none of the work.
+      for (const q of fresh) q.bypassed = true;
+      this.emit(
+        'questions',
+        `${who} has ${fresh.length} blocking question(s); Bypass is on, so the agent decides them`,
+        { ids, answerable: false, bypassed: true },
+      );
+      if (number < cap || (solo && number === cap)) return 'again';
+      await this.bypass(ctx, number, `${pdir}/bypass.json`);
+      for (const q of fresh) q.applied = true;
+      state.notes.push(
+        `The spec still had blocking questions after ${number} spec pass(es), the limit ` +
+          '(limits.max_rounds_spec); the agent decided them and the run went on (Bypass).',
+      );
+      return 'go';
+    }
     const findings = fresh.map((q) => blocker(q.id, 'open-question', q.text));
     this.stop('needs_human', findings);
     if (number >= cap) {
-      // The pass at the cap still has blocking questions: don't ask them one more time.
+      // The pass at the cap still has blocking questions: don't ask them one more time. *Begin
+      // work?* lets the agent decide them, and every later question.
       const n = fresh.length;
       const explanation =
         `The spec still has ${n} blocking question${n !== 1 ? 's' : ''} after ${number} ` +
@@ -600,11 +690,69 @@ export class Orchestrator {
     } else {
       this.emit(
         'questions',
-        `spec has ${fresh.length} blocking question(s); answer them on the run's page.`,
+        `${who} has ${fresh.length} blocking question(s); answer them on the run's page.`,
         { ids, answerable: true },
       );
     }
     return 'stop';
+  }
+
+  /**
+   * *Begin work*: from now on the agent decides every question, including those still waiting, so
+   * nothing stops the run for questions again.
+   */
+  private begin(d: Decision): void {
+    const state = this.state;
+    state.bypass_questions = true;
+    for (const q of pendingQuestions(state)) q.bypassed = true;
+    d.applied = true;
+    this.emit(
+      'decision',
+      'you chose to begin work: the agent decides the open questions, and any later one',
+      { decision_kind: 'spec_cap', choice: 'begin', decision_stage: d.stage },
+    );
+  }
+
+  /**
+   * *Begin work* at the spec stage: the spec writer answers the questions the last pass left open,
+   * the answers go into task.md without another revision pass, and the spec is committed.
+   */
+  private async beginSpec(ctx: Context, d: Decision): Promise<boolean> {
+    const state = this.state;
+    const ws = ctx.workspace;
+    this.begin(d);
+    const number = state.spec_passes;
+    await this.bypass(ctx, number, `spec/pass-${number}/bypass-begin.json`);
+    for (const q of state.questions) if (q.answer) q.applied = true;
+    const taskMd = withAnswersSection(this.readRunTaskMd(), state.questions);
+    writeFileSync(path.join(ws.path, 'task.md'), taskMd);
+    this.setTaskMd(ctx, taskMd, `spec/pass-${number}`);
+    state.notes.push(
+      `The spec still had blocking questions after ${number} spec pass(es), the limit ` +
+        '(limits.max_rounds_spec); you chose to begin work, and the agent decided them.',
+    );
+    state.commits[COMMIT_KEYS.SPEC] = await ws.commit('advpipe: spec (task.md)');
+    return true;
+  }
+
+  /**
+   * Have the agent that wrote task.md (the spec writer, or the solo agent) answer the questions a
+   * person bypassed. Does nothing when there are none.
+   */
+  private async bypass(ctx: Context, number: number, rel?: string): Promise<void> {
+    const waiting = awaitingBypass(this.state);
+    if (waiting.length === 0) return;
+    const solo = SHAPES[this.state.level].solo;
+    const role: Role = solo ? 'solo' : 'spec-writer';
+    const where = solo ? this.soloDir() : `spec/pass-${number}`;
+    await bypassQuestions(
+      ctx,
+      role,
+      waiting,
+      this.readRunTaskMd(),
+      solo ? 'solo' : 'spec',
+      rel ?? `${where}/bypass.json`,
+    );
   }
 
   /**
@@ -632,6 +780,152 @@ export class Orchestrator {
       fresh.push(q);
     }
     return fresh;
+  }
+
+  // ----------------------------------------------------------------------------- SOLO
+
+  /**
+   * The solo agent's stage (Basic and Reviewer): task.md, tests and code in one pass, or the
+   * blocking questions and nothing else. One agent call per entry and no automatic retries: red
+   * checks stop and ask. False = the run stops.
+   */
+  private async solo(ctx: Context): Promise<boolean> {
+    const state = this.state;
+    const ws = ctx.workspace;
+    const cap = this.config.limits.max_rounds_spec;
+    const taskPath = path.join(ws.path, 'task.md');
+    if (existsSync(taskPath)) ctx.taskMd = readFileSync(taskPath, 'utf-8');
+    const fix = take(state, 'red_checks', 'fix', 'SOLO');
+    if (fix !== null) return this.soloFix(ctx, fix);
+    const begin = take(state, 'spec_cap', 'begin', 'SOLO');
+    if (begin !== null) this.begin(begin);
+    if (ctx.judgeExisting) {
+      ctx.judgeExisting = false;
+      return this.soloChecks(ctx, this.soloDir(true));
+    }
+    for (;;) {
+      const number = state.spec_passes + 1;
+      await this.bypass(ctx, number);
+      const given = unappliedQuestions(state);
+      const pdir = this.soloDir();
+      let prompt: string;
+      if (given.length > 0) {
+        const previousMd = this.readRunTaskMd();
+        state.round = number;
+        this.emit(
+          'round',
+          `solo pass ${number}/${cap}: with the answers to ${given.map((q) => q.id).join(', ')}`,
+          { cap },
+        );
+        this.runlog.writeJson(`${pdir}/answers.json`, answeredQuestions(state));
+        prompt = soloRevisionPrompt(ctx, previousMd, answeredQuestions(state));
+      } else {
+        prompt = soloPrompt(ctx);
+      }
+      const result = await callAgent(ctx, 'solo', prompt, 'solo');
+      state.spec_passes = number;
+      for (const q of given) q.applied = true;
+      this.runlog.writeText(`${pdir}/author.txt`, result.text);
+      if (!existsSync(taskPath)) return this.soloChecks(ctx, pdir);
+      let taskMd = readFileSync(taskPath, 'utf-8');
+      if (answeredQuestions(state).length > 0) {
+        taskMd = withAnswersSection(taskMd, state.questions);
+        writeFileSync(taskPath, taskMd);
+      }
+      this.setTaskMd(ctx, taskMd, pdir);
+      const outcome = await this.questionStop(ctx, taskMd, number, pdir, true);
+      if (outcome === 'stop') {
+        await this.revertAllButTaskMd(ctx, 'solo agent', 'while it had blocking questions');
+        return false;
+      }
+      if (outcome === 'again') {
+        await this.revertAllButTaskMd(ctx, 'solo agent', 'while it had blocking questions');
+        continue;
+      }
+      if (outcome === 'go') {
+        taskMd = withAnswersSection(taskMd, state.questions);
+        writeFileSync(taskPath, taskMd);
+        this.setTaskMd(ctx, taskMd, pdir);
+      }
+      return this.soloChecks(ctx, pdir);
+    }
+  }
+
+  /** `stage-solo/pass-N` for the next solo pass (or, `newest`, the last one). */
+  private soloDir(newest = false): string {
+    const root = this.runlog.path('stage-solo');
+    const count = existsSync(root)
+      ? readdirSync(root).filter((n) => n.startsWith('pass-')).length
+      : 0;
+    return `stage-solo/pass-${newest ? Math.max(count, 1) : count + 1}`;
+  }
+
+  /** An agent that stopped on blocking questions mustn't leave code behind. */
+  private async revertAllButTaskMd(ctx: Context, who: string, why: string): Promise<void> {
+    const ws = ctx.workspace;
+    const state = this.state;
+    const stray = (await ws.changedFiles(state.base_commit)).filter((f) => f !== 'task.md');
+    if (stray.length > 0) {
+      await ws.restore(state.base_commit, stray);
+      state.notes.push(`The ${who} edited files ${why}; reverted: ${stray.join(', ')}`);
+    }
+  }
+
+  /** A person-requested pass by the solo agent, then the checks. */
+  private async soloFix(ctx: Context, d: Decision): Promise<boolean> {
+    const state = this.state;
+    const ws = ctx.workspace;
+    const number = state.fix_passes + 1;
+    const cap = this.config.limits.max_fix_passes;
+    const pdir = this.soloDir();
+    this.emit('round', `fix pass ${number}/${cap}: you asked for another pass`, { cap });
+    this.runlog.writeJson(`${pdir}/request.json`, {
+      fix_pass: number,
+      note: d.note,
+      findings: d.findings,
+    });
+    const prompt = authorFindingsPrompt(d.findings, ctx.lastGates, fixPassNote(number));
+    const result = await callAgent(ctx, 'solo', prompt + fixPassExtra(d.note), 'solo');
+    state.fix_passes = number;
+    d.applied = true;
+    this.runlog.writeText(`${pdir}/author.txt`, result.text);
+    const taskPath = path.join(ws.path, 'task.md');
+    if (existsSync(taskPath)) {
+      let taskMd = readFileSync(taskPath, 'utf-8');
+      if (answeredQuestions(state).length > 0) {
+        taskMd = withAnswersSection(taskMd, state.questions);
+        writeFileSync(taskPath, taskMd);
+      }
+      this.setTaskMd(ctx, taskMd, pdir);
+    }
+    return this.soloChecks(ctx, pdir);
+  }
+
+  /** The solo stage's checks: task.md exists, then the gates. Red stops and asks. */
+  private async soloChecks(ctx: Context, pdir: string): Promise<boolean> {
+    const state = this.state;
+    const ws = ctx.workspace;
+    const findings: Finding[] = [];
+    if (!existsSync(path.join(ws.path, 'task.md'))) {
+      findings.push(blocker('S1', 'guard:task-md', 'the solo agent did not produce task.md'));
+    }
+    const gates = await runGates(this.config, ws.path, runGateNames(state), this.signal);
+    noteScannerSkipped(ctx, gates);
+    ctx.lastGates = gates;
+    this.runlog.writeJson(`${pdir}/gates.json`, gates);
+    this.runlog.writeText(`${pdir}/diff.patch`, await ws.diff(state.base_commit, REVIEW_PATHS));
+    this.emit('gates', `gates: ${gatesLine(gates)}`, { gates: gateStatuses(gates) });
+    findings.push(...checkedFindings(ctx, gates));
+    if (findings.length > 0) {
+      this.askRed(
+        findings,
+        "the solo agent's pass",
+        'solo agent',
+        "The solo agent doesn't retry by itself.",
+      );
+      return false;
+    }
+    return true;
   }
 
   // ----------------------------------------------------------------------------- SETTLE
@@ -692,7 +986,7 @@ export class Orchestrator {
         this.askRed(
           remaining,
           previous,
-          author,
+          this.fixer(author),
           "The step's rounds, the rulings and a final fix pass didn't clear them.",
           { stage: previous },
         );

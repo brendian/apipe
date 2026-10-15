@@ -138,7 +138,7 @@ Levels Tests, Adversarial and Full. `askRed` may stub to a plain `needs_human` w
 **Tests:** the §4 scenarios in 09 that concern levels 3–5; `maxAgentCalls` worst case for those levels;
 resume at every stage boundary; interrupted run resumes.
 
-## M5 · Orchestrator II: questions, solo levels, decisions, usage
+## M5 · Orchestrator II: questions, solo levels, decisions, usage  ✔ done 2026-10-15
 
 **Read:** 02 §5–§6, §11, §14; `answers.py decisions.py` + the solo/decision/bypass/usage parts of
 `orchestrator.py`; `test_answers, test_bypass, test_solo, test_decisions, test_usage, test_level_invariants`.

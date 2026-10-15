@@ -14,6 +14,7 @@ export * from './core/gates.js';
 // M3: runner and stages.
 export * from './core/cancel.js';
 export * from './core/decisions.js';
+export * from './core/answers.js';
 export * from './runner/types.js';
 export * from './runner/roles.js';
 export * from './runner/sdk.js';

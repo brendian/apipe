@@ -11,6 +11,7 @@ import {
   writes,
   type FakeAgentRunner,
   type Scripts,
+  type Step,
 } from '../../src/index.js';
 
 export const TASK_MD = `# Task: Add clamp
@@ -155,3 +156,61 @@ export async function commitSpec(ctx: Context, taskMd = TASK_MD): Promise<void> 
   ctx.taskMd = taskMd;
   ctx.state.commits['spec'] = await ctx.workspace.commit('advpipe: spec (task.md)');
 }
+
+// ── questions, answers, Bypass ──────────────────────────────────────────────────────────────────
+
+export const QUESTION = 'should lo > hi swap or throw?';
+export const QUESTION_2 = 'may lo equal hi?';
+export const ANSWER = 'Throw RangeError naming both lo and hi.';
+export const AGENT_ANSWER = "Throw RangeError: the spec's AC3 already says lo > hi is an error.";
+export const AGENT_REASON = 'AC3 names RangeError for lo > hi; swapping would hide a bug.';
+
+/** A revision that adds the answer as a criterion and has no blocking questions left. */
+export const TASK_MD_REVISED = TASK_MD.replace(
+  '- [ ] AC3: lo > hi throws RangeError.',
+  '- [ ] AC3: lo > hi throws RangeError.\n- [ ] AC4: the RangeError message names lo and hi.',
+);
+
+export const secondQuestion = (taskMd = TASK_MD_REVISED): string =>
+  taskMd.replace('## Open questions\n- None', `## Open questions\n- BLOCKING: ${QUESTION_2}`);
+
+/** The reply of an agent deciding its own blocking questions (Bypass). */
+export const bypassReply = (...ids: string[]): string =>
+  JSON.stringify({
+    answers: ids.map((id) => ({ id, answer: AGENT_ANSWER, reasoning: AGENT_REASON })),
+  });
+
+/** A spec writer that asks one blocking question and nothing else. */
+export function blockedScripts(first = TASK_MD_BLOCKING): Scripts {
+  return {
+    ...happyScripts(),
+    'spec-writer': [writes({ 'task.md': first }, 'one blocking question')],
+  };
+}
+
+/** A resumed run: the spec writer's steps, then every later stage once. */
+export function afterAnswers(...specSteps: Step[]): Scripts {
+  return {
+    ...happyScripts(),
+    'spec-writer': specSteps.length > 0 ? specSteps : [writes({ 'task.md': TASK_MD_REVISED })],
+  };
+}
+
+// ── the solo levels ─────────────────────────────────────────────────────────────────────────────
+
+export const SOLO_OK = writes(
+  { 'task.md': TASK_MD, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_OK },
+  'AUTHOR-REASONING solo',
+);
+export const SOLO_WRONG = writes(
+  { 'task.md': TASK_MD, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_WRONG },
+  'wrong',
+);
+export const SOLO_REVISED = writes(
+  { 'task.md': TASK_MD_REVISED, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_OK },
+  'revised',
+);
+export const SOLO_ASKS = writes(
+  { 'task.md': TASK_MD_BLOCKING, 'mathutils/extra.js': '// written too early\n', ...IMPL_OK },
+  'asked a question',
+);

@@ -19,12 +19,12 @@ is how the next session knows where things stand.
 | `gates.py` | `engine/src/core/gates.ts` | M2 | ☑ | `spawn` (argument array, own process group so a timeout kills grandchildren too) + `which.ts` for the missing-executable case; abortable via `AbortSignal` |
 | `workspace.py` | `engine/src/core/workspace.ts` + `git.ts` + `gitlock.ts` | M2 | ☑ | same git commands (plus `commit.gpgsign=false`, `-z` listings so odd file names work); repo-wide git lock (04 §3.4); `slugify`/`BRANCH_PREFIX` live in `contracts` (M1) |
 | `runlog.py` | `engine/src/core/runlog.ts` + `report.ts` (`renderReport`) | M1 | ☑ | temp+rename writes; lock; `renderReport` verbatim except the three command strings (02 §19). Sync fs on purpose. `listRuns` returns `{runs, unreadable}` instead of throwing on one bad run |
-| `answers.py` | `engine/src/core/answers.ts` | M5 | ☐ | |
-| `decisions.py` | `engine/src/core/decisions.ts` | M5 | ◐ | `DecisionNeeded`, `current`, `take`, `pendingChoice`, `awaitingDecision`, `decisionReady`, `endedMessage`, `waitingMessage` exist (M4); `decide`, takeover and the rest are M5 |
+| `answers.py` | `engine/src/core/answers.ts` | M5 | ☑ | `recordAnswers`/`checkAnswers`/`withAnswersSection`/`migrate` and the state predicates (`pendingQuestions`, `awaitingAnswers`, …; renamed from `pending`, `awaiting_answers`, … so they export cleanly). Answers *files* (`parse_answers_file`, `--template`) are CLI-only and not ported. `recordAnswers` is async (it asks git whether the branch exists) |
+| `decisions.py` | `engine/src/core/decisions.ts` | M5 | ☑ | M4 had the read-only helpers; M5 adds `decide` (async: takeover does git work), `DecisionError`, `maxFixPasses`. `CHOICE_LABELS`/`decide_command`/`choices_text` are CLI text and not ported (the UI has `CHOICE_VIEWS`, M10) |
 | `control.py` | `engine/src/core/control.ts` | M6 | ☐ | detach = `spawn` + lock; cancel = file; clean as-is |
 | `runner.py` | `engine/src/runner/{types,roles,sdk,fake}.ts` | M3 | ☑ | 06. `Cancelled` lives in `core/cancel.ts`; `SdkAgentRunner` is unrun against the real API (spike S3 still pending) |
-| `stages.py` | `engine/src/stages/*.ts` | M3–M4 | ◐ | split into `context, calls (callAgent + JSON), prompts, guards, adversarial, review, arbiter`. Done in M3 except `bypassQuestions` (+ its `MAX_ANSWER_CHARS` constants), which waits for `answers.ts` in M5. `blockingOpenQuestions` was M1 (`contracts`) |
-| `orchestrator.py` | `engine/src/orchestrator/{orchestrator,resume}.ts` | M4–M5 | ◐ | M4 done: `run`/`drive`/`openWorkspace`/`enter`/`stop`/`ask`/`askRed`/`askUsage`/`stage`/`settle`/`personFix`/`applyRetry`/`applyScanChoice`, SPEC first pass (questions stop the run), `resume`/`checkResumable`/`checkSameShape`/`newRunId`. M5: `_solo*`, `_bypass`, `_begin*`, spec revisions/answers, and a real `awaitingAnswers` (M4 has a small inline stand-in for the report). Methods are camelCase; one class instead of per-stage files |
+| `stages.py` | `engine/src/stages/*.ts` | M3–M5 | ☑ | split into `context, calls (callAgent + JSON), prompts, guards, adversarial, review, arbiter, bypass`. `bypassQuestions` (M5) is `stages/bypass.ts`; its `MAX_ANSWER_CHARS`/`MAX_REASONING_CHARS` live in `core/answers.ts`. `blockingOpenQuestions` was M1 (`contracts`) |
+| `orchestrator.py` | `engine/src/orchestrator/{orchestrator,resume}.ts` | M4–M5 | ☑ | M4: `run`/`drive`/`openWorkspace`/`enter`/`stop`/`ask`/`askRed`/`askUsage`/`stage`/`settle`/`personFix`/`applyRetry`/`applyScanChoice`, `resume`/`checkResumable`/`checkSameShape`/`newRunId`. M5: `solo`/`soloChecks`/`soloFix`, the SPEC loop with revisions, `questionStop`, `bypass`, `begin`/`beginSpec`, `newQuestions`, and `checkResumable`'s `migrate` + answers-ready paths. Methods are camelCase; one class instead of per-stage files |
 | `cli.py` | **(deleted)**; its behaviour is the host's IPC handlers + UI | M7+ | – | `_summary`/`status` text feeds the worker's end-of-run line only; `gates` command deferred |
 | `__main__.py` | `engine/src/worker.ts` (hidden) | M6 | ☐ | |
 | `ui/runs.py` | `engine/src/readmodel/runs.ts` | M7 | ☐ | `display_status`, `STATUSES`, `FILTERS`, `stage_label` |
@@ -53,18 +53,18 @@ All under `tests/` in the Python tree. TS tests live beside the module under `pa
 | `test_models.py` | `contracts/test/findings.test.ts` | |
 | `test_config_and_prompts.py` | `contracts/test/config.test.ts`, `scripts/check-prompts-sync` | prompts ↔ `.claude/agents` sync, critic shared-rule substrings |
 | `test_workitem.py` | `contracts/test/workitem.test.ts` | |
-| `test_levels.py`, `test_level_invariants.py` | `contracts/test/levels.test.ts`, `engine/test/levels.integration.test.ts`, `engine/test/invariants.test.ts` | `advpipe levels` CLI output → N/A (the slider summary is tested in `planRun`) |
+| `test_levels.py`, `test_level_invariants.py` | `contracts/test/levels.test.ts`, `engine/test/invariants.test.ts` (☑ M5: the invariants parametrised over all five levels) | `advpipe levels` CLI output → N/A (the slider summary is tested in `planRun`) |
 | `test_gates.py` | `engine/test/gates.test.ts` | ☑ |
 | `test_workspace.py` | `engine/test/workspace.test.ts` | ☑ + git-lock concurrency; slugify cases are in `contracts/test/text.test.ts` |
 | `test_events.py` | `engine/test/events.test.ts` | printed-vs-event equality → "echo" rule |
 | `test_stages.py`, `test_orchestrator.py` | `engine/test/stages.test.ts`, `orchestrator.test.ts` | `test_stages` ☑ (M3, plus prompts/guards/review/arbiter cases from the orchestrator tests that need no orchestrator, in `stages.test.ts` + `adversarial.test.ts`); `test_orchestrator` ☑ (M4, lightly: the scenarios that matter, in `orchestrator.test.ts`) |
-| `test_tests_level.py`, `test_solo.py` | `engine/test/tests-level.test.ts`, `solo.test.ts` | `test_tests_level` ◐ (M4: happy path, no-arbiter settle, worst case in `orchestrator.test.ts`; its answers/resume-at-review cases wait for M5). |
+| `test_tests_level.py`, `test_solo.py` | `engine/test/tests-level.test.ts`, `solo.test.ts` | `test_tests_level` ☑ (M4: happy path, no-arbiter settle, worst case in `orchestrator.test.ts`; M5: resume-at-review and answers in `invariants.test.ts`). `test_solo` ☑ (M5, `solo.test.ts`; the CLI cases are N/A) |
 | `test_test_defects.py` | `engine/test/adversarial.test.ts` ("test defects") | ☑ driven at stage level (no orchestrator yet); the `Orchestrator` end-to-end variants come with M4 |
 | `test_resume.py`, `test_parallel.py` | `engine/test/resume.test.ts`, `parallel.test.ts` | `test_resume` ☑ (M4, the `resume` block of `orchestrator.test.ts`); parallel now also in `process.test.ts` (real workers) |
-| `test_answers.py`, `test_bypass.py` | `engine/test/answers.test.ts`, `bypass.test.ts` | |
+| `test_answers.py`, `test_bypass.py` | `engine/test/answers.test.ts` | ☑ (M5, lightly, in one file with Bypass and the spec-pass cap; answers-file parsing, `--template` and the CLI/front-matter flag cases are N/A) |
 | `test_answers_cli.py`, `test_cli.py` | N/A as CLI; the *behaviours* move to `app/main` handler tests and `engine` tests | exit codes N/A; refusals and messages still tested |
-| `test_decisions.py` | `engine/test/decisions.test.ts` | terminal "decide now" prompt N/A |
-| `test_usage.py` | `engine/test/usage.test.ts` | `advpipe usage` output N/A (UI usage view tested instead) |
+| `test_decisions.py` | `engine/test/decisions.test.ts` | ☑ (M5; terminal "decide now" prompt and the CLI cases N/A; `spec_cap` is in `answers.test.ts`) |
+| `test_usage.py` | `engine/test/usage.test.ts` | pure parts ☑ (M1, `contracts/test/usage.test.ts`); pause/retry/finish scenarios ☑ (M5, the `usage limits` block of `decisions.test.ts`); SDK-runner stream cases are `SdkAgentRunner`'s and wait for a real call (M3 note); `advpipe usage` output N/A (UI usage view tested instead) |
 | `test_reports.py` | `engine/test/reports.test.ts` | |
 | `test_control.py` | `engine/test/control.test.ts`, `process.test.ts` | cancel by file; clean rules; run-id traversal |
 | `test_ui.py` | `app/main/test/handlers.test.ts` + renderer tests | token/CSRF/Host tests N/A (no server) → replaced by IPC hostile-input tests |
