@@ -155,7 +155,7 @@ levels; `maxAgentCalls` for Basic and Reviewer.
 **Done when:** the whole Python orchestrator-level suite has TS counterparts (porting map statuses ☑ for
 everything except CLI/UI rows) and the decision/answers/usage scenarios produce loadable run directories and reports.
 
-## M6 · Worker processes and control
+## M6 · Worker processes and control  ✔ done 2026-10-15
 
 **Read:** 04 §3, 02 §15; `control.py`; `test_control`, `advpipe_fake_child.py`, `WINDOWS_PLAN.md`.
 

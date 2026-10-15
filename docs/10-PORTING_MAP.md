@@ -21,12 +21,12 @@ is how the next session knows where things stand.
 | `runlog.py` | `engine/src/core/runlog.ts` + `report.ts` (`renderReport`) | M1 | ☑ | temp+rename writes; lock; `renderReport` verbatim except the three command strings (02 §19). Sync fs on purpose. `listRuns` returns `{runs, unreadable}` instead of throwing on one bad run |
 | `answers.py` | `engine/src/core/answers.ts` | M5 | ☑ | `recordAnswers`/`checkAnswers`/`withAnswersSection`/`migrate` and the state predicates (`pendingQuestions`, `awaitingAnswers`, …; renamed from `pending`, `awaiting_answers`, … so they export cleanly). Answers *files* (`parse_answers_file`, `--template`) are CLI-only and not ported. `recordAnswers` is async (it asks git whether the branch exists) |
 | `decisions.py` | `engine/src/core/decisions.ts` | M5 | ☑ | M4 had the read-only helpers; M5 adds `decide` (async: takeover does git work), `DecisionError`, `maxFixPasses`. `CHOICE_LABELS`/`decide_command`/`choices_text` are CLI text and not ported (the UI has `CHOICE_VIEWS`, M10) |
-| `control.py` | `engine/src/core/control.ts` | M6 | ☐ | detach = `spawn` + lock; cancel = file; clean as-is |
+| `control.py` | `engine/src/core/control.ts` (+ `proc.ts`) | M6 | ☑ | detach = `spawn` + lock; cancel = file; clean as-is |
 | `runner.py` | `engine/src/runner/{types,roles,sdk,fake}.ts` | M3 | ☑ | 06. `Cancelled` lives in `core/cancel.ts`; `SdkAgentRunner` is unrun against the real API (spike S3 still pending) |
 | `stages.py` | `engine/src/stages/*.ts` | M3–M5 | ☑ | split into `context, calls (callAgent + JSON), prompts, guards, adversarial, review, arbiter, bypass`. `bypassQuestions` (M5) is `stages/bypass.ts`; its `MAX_ANSWER_CHARS`/`MAX_REASONING_CHARS` live in `core/answers.ts`. `blockingOpenQuestions` was M1 (`contracts`) |
 | `orchestrator.py` | `engine/src/orchestrator/{orchestrator,resume}.ts` | M4–M5 | ☑ | M4: `run`/`drive`/`openWorkspace`/`enter`/`stop`/`ask`/`askRed`/`askUsage`/`stage`/`settle`/`personFix`/`applyRetry`/`applyScanChoice`, `resume`/`checkResumable`/`checkSameShape`/`newRunId`. M5: `solo`/`soloChecks`/`soloFix`, the SPEC loop with revisions, `questionStop`, `bypass`, `begin`/`beginSpec`, `newQuestions`, and `checkResumable`'s `migrate` + answers-ready paths. Methods are camelCase; one class instead of per-stage files |
 | `cli.py` | **(deleted)**; its behaviour is the host's IPC handlers + UI | M7+ | – | `_summary`/`status` text feeds the worker's end-of-run line only; `gates` command deferred |
-| `__main__.py` | `engine/src/worker.ts` (hidden) | M6 | ☐ | |
+| `__main__.py` | `engine/src/worker.ts` (hidden; body in `worker-core.ts`; test entry `worker-fake.ts`) | M6 | ☑ | the fake-agent hook is a separate entry, so release builds never contain it |
 | `ui/runs.py` | `engine/src/readmodel/runs.ts` | M7 | ☐ | `display_status`, `STATUSES`, `FILTERS`, `stage_label` |
 | `ui/detail.py` | `engine/src/readmodel/{detail,next-steps}.ts` | M8 | ☐ | timeline, rounds, decision view, next steps (minus `advpipe …` commands) |
 | `ui/context.py` | `engine/src/readmodel/context.ts` | M8 | ☐ | |
@@ -66,7 +66,7 @@ All under `tests/` in the Python tree. TS tests live beside the module under `pa
 | `test_decisions.py` | `engine/test/decisions.test.ts` | ☑ (M5; terminal "decide now" prompt and the CLI cases N/A; `spec_cap` is in `answers.test.ts`) |
 | `test_usage.py` | `engine/test/usage.test.ts` | pure parts ☑ (M1, `contracts/test/usage.test.ts`); pause/retry/finish scenarios ☑ (M5, the `usage limits` block of `decisions.test.ts`); SDK-runner stream cases are `SdkAgentRunner`'s and wait for a real call (M3 note); `advpipe usage` output N/A (UI usage view tested instead) |
 | `test_reports.py` | `engine/test/reports.test.ts` | |
-| `test_control.py` | `engine/test/control.test.ts`, `process.test.ts` | cancel by file; clean rules; run-id traversal |
+| `test_control.py` | `engine/test/control.test.ts`, `process.test.ts` | ☑ M6 (lightly): real detached workers (start, cancel, forced stop, SIGKILL, parallel branches, answers, decide, clean); clean rules and run-id traversal in-process |
 | `test_ui.py` | `app/main/test/handlers.test.ts` + renderer tests | token/CSRF/Host tests N/A (no server) → replaced by IPC hostile-input tests |
 | `test_ui_detail.py`, `test_ui_context.py` | `engine/test/readmodel-detail.test.ts`, `readmodel-context.test.ts` + renderer page tests | SSE tests → `tailEvents` + push tests |
 | `test_ui_items.py` | `engine/test/items.test.ts` + renderer editor tests | path-traversal suite kept in full |

@@ -96,7 +96,7 @@ The renderer cannot even *compile* an import of Node or the engine. That is the 
 
 ### 3.1 What it is
 
-`packages/engine/src/worker.ts`, built to a single file (`worker.js`, esbuild or `tsc`), run as
+`packages/engine/src/worker.ts` (body: `worker-core.ts`; tsc emits `dist/src/worker.js`; M12 bundles it), built to a single file (`worker.js`, esbuild or `tsc`), run as
 `process.execPath worker.js --start <abs path to start.json>` with `ELECTRON_RUN_AS_NODE=1` (so the
 Electron binary behaves as plain Node). In a packaged app `worker.js` and the SDK's native Claude
 binary must be **unpacked from the asar** (see [06-AGENT_RUNNER](06-AGENT_RUNNER.md) §8).

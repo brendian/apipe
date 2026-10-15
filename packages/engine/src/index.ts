@@ -22,3 +22,5 @@ export * from './runner/fake.js';
 export * from './stages/index.js';
 // M4: the orchestrator.
 export * from './orchestrator/index.js';
+export * from './core/proc.js';
+export * from './core/control.js';

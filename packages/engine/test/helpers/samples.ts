@@ -198,14 +198,10 @@ export function afterAnswers(...specSteps: Step[]): Scripts {
 
 // ── the solo levels ─────────────────────────────────────────────────────────────────────────────
 
-export const SOLO_OK = writes(
-  { 'task.md': TASK_MD, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_OK },
-  'AUTHOR-REASONING solo',
-);
-export const SOLO_WRONG = writes(
-  { 'task.md': TASK_MD, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_WRONG },
-  'wrong',
-);
+/** What a solo agent writes besides the implementation. */
+export const SOLO_FILES = { 'task.md': TASK_MD, 'tests/clamp.test.js': TEST_CLAMP };
+export const SOLO_OK = writes({ ...SOLO_FILES, ...IMPL_OK }, 'AUTHOR-REASONING solo');
+export const SOLO_WRONG = writes({ ...SOLO_FILES, ...IMPL_WRONG }, 'wrong');
 export const SOLO_REVISED = writes(
   { 'task.md': TASK_MD_REVISED, 'tests/clamp.test.js': TEST_CLAMP, ...IMPL_OK },
   'revised',

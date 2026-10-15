@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
   gatePassed,
   GATE_NAMES,
@@ -9,6 +9,8 @@ import {
   type GateResult,
   gateSummary,
 } from '@advpipe/contracts';
+import { throwIfCancelled } from './cancel.js';
+import { killTree } from './proc.js';
 import { which } from './which.js';
 
 // Run the configured check commands and turn failures into blocking findings (docs/02 §10).
@@ -44,18 +46,6 @@ const finished = (name: string, command: string[], code: number, output: string)
   skip_reason: '',
 });
 
-function killTree(pid: number): void {
-  try {
-    if (process.platform === 'win32') {
-      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
-    } else {
-      process.kill(-pid, 'SIGKILL'); // the gate leads its own process group
-    }
-  } catch {
-    // already gone
-  }
-}
-
 function collect(chunks: Buffer[]): { push(b: Buffer): void; text(): string } {
   let size = 0;
   return {
@@ -78,7 +68,7 @@ export async function runGate(
 ): Promise<GateResult> {
   const exe = command[0];
   if (exe === undefined) return skipped(name, command, 'not configured');
-  signal?.throwIfAborted();
+  throwIfCancelled(signal);
   const resolved = which(exe, cwd);
   if (resolved === null) {
     if (OPTIONAL_GATES.has(name)) return skipped(name, command, `${exe} not installed`);
@@ -117,7 +107,7 @@ export async function runGate(
       // Spawn failed after `which` found the file (not executable, bad interpreter, ...).
       return { failed: e instanceof Error ? e.message : String(e) };
     });
-    signal?.throwIfAborted();
+    throwIfCancelled(signal);
     if (typeof code !== 'number') return finished(name, command, 127, tail(code.failed));
     if (timedOut) return finished(name, command, 124, tail(out.text() + '\n[timed out]'));
     return finished(name, command, code, tail(out.text() + err.text()));

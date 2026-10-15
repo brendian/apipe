@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Config, Role } from '@advpipe/contracts';
 import type { AgentRequest } from './types.js';
@@ -35,15 +36,22 @@ export const ROLE_MODEL: Readonly<Record<Role, ModelTier>> = {
 };
 
 // `packages/engine/prompts/` is a build-time copy of `assets/prompts/` (scripts/copy-prompts.mjs).
-// This file is `src/runner/` or `dist/runner/`: two levels below the package root either way.
-const PROMPTS_DIR = new URL('../../prompts/', import.meta.url);
+// This file is `src/runner/` or `dist/src/runner/`: walk up to the first `prompts/` folder.
+function findPromptsDir(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 5; i++, dir = path.dirname(dir)) {
+    if (existsSync(path.join(dir, 'prompts', 'solo.md'))) return path.join(dir, 'prompts');
+  }
+  throw new Error('role prompts not found (run `npm run build:libs` to copy them)');
+}
+let promptsDir: string | undefined;
 const cache = new Map<Role, string>();
 
 /** The role's system prompt, read once. */
 export function loadPrompt(role: Role): string {
   let text = cache.get(role);
   if (text === undefined) {
-    text = readFileSync(fileURLToPath(new URL(`${role}.md`, PROMPTS_DIR)), 'utf-8');
+    text = readFileSync(path.join((promptsDir ??= findPromptsDir()), `${role}.md`), 'utf-8');
     cache.set(role, text);
   }
   return text;

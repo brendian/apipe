@@ -7,6 +7,7 @@ export * from './workitem.js';
 export * from './events.js';
 export * from './usage.js';
 export * from './slug.js';
+export * from './start.js';
 export * from './blocking.js';
 export * from './text.js';
 export * from './ipc.js';

@@ -1,3 +1,4 @@
+import { Cancelled } from '../src/core/cancel.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -67,7 +68,7 @@ describe('runGate', () => {
     const ac = new AbortController();
     const p = runGate('test', node('setTimeout(() => {}, 30000)'), dir, 60, ac.signal);
     setTimeout(() => ac.abort(), 200);
-    await expect(p).rejects.toThrow();
+    await expect(p).rejects.toBeInstanceOf(Cancelled);
   });
 });
 
