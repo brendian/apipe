@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { _electron as electron, expect, test } from '@playwright/test';
 import { Config } from '@advpipe/contracts';
@@ -12,20 +12,29 @@ import { makeRepo, root, scratch } from './support.js';
 // the worker's agent call runs with an empty home and no credentials, so it can only fail to log in.
 
 const release = path.join(root, 'release');
+// The package is run from a copy outside the repo: inside it, Node's module lookup walks up into
+// the repo's own node_modules and hides a dependency the package forgot to ship.
 function packagedApp(): { exe: string; resources: string } {
+  const copy = (dir: string): string => {
+    const to = path.join(scratch(), path.basename(dir));
+    if (existsSync(dir)) cpSync(dir, to, { recursive: true, verbatimSymlinks: true });
+    return to;
+  };
   if (process.platform === 'win32') {
-    const dir = path.join(release, 'win-unpacked');
+    const dir = copy(path.join(release, 'win-unpacked'));
     return { exe: path.join(dir, 'advpipe.exe'), resources: path.join(dir, 'resources') };
   }
   if (process.platform === 'darwin') {
-    const dir = readdirSync(release).find((d) => d.startsWith('mac')) ?? 'mac';
-    const contents = path.join(release, dir, 'advpipe.app', 'Contents');
+    const dir = copy(
+      path.join(release, readdirSync(release).find((d) => d.startsWith('mac')) ?? 'mac'),
+    );
+    const contents = path.join(dir, 'advpipe.app', 'Contents');
     return {
       exe: path.join(contents, 'MacOS', 'advpipe'),
       resources: path.join(contents, 'Resources'),
     };
   }
-  const dir = path.join(release, 'linux-unpacked');
+  const dir = copy(path.join(release, 'linux-unpacked'));
   return { exe: path.join(dir, 'advpipe'), resources: path.join(dir, 'resources') };
 }
 const { exe, resources } = packagedApp();

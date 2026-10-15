@@ -212,7 +212,8 @@ For a **packaged** app:
 - Build per target OS/arch (CI matrix) so the right optional dependency is present, or install the
   others explicitly with `npm install --os=… --cpu=…` when cross-building.
 - The binary must be **outside the asar** (an executable inside an asar can't be spawned): configure
-  `asarUnpack` for `node_modules/@anthropic-ai/claude-agent-sdk*/**`, and pass
+  `asarUnpack` for `node_modules/**` (the binary, and every runtime dependency: the worker runs from
+  `app.asar.unpacked` and resolves its imports from `app.asar.unpacked/node_modules`), and pass
   `pathToClaudeCodeExecutable` resolved against `process.resourcesPath` + `app.asar.unpacked/…`.
   **Spike S5 (done for Linux x64 in M12; macOS/Windows by CI)**: the platform package holds one native executable named `claude`
   (`@anthropic-ai/claude-agent-sdk-<os>-<arch>/claude`; `.exe` on Windows) and the SDK uses it with no Node/Bun
