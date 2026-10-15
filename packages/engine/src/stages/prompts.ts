@@ -3,6 +3,7 @@ import {
   scanOn,
   type Config,
   type Finding,
+  type GateName,
   type GateResult,
   type OpenQuestion,
   type RunState,
@@ -21,13 +22,13 @@ export type StageKind = 'tests' | 'code' | 'solo';
 /** task.md is the contract, not part of the change: keep it out of diffs that critics judge. */
 export const REVIEW_PATHS = ['.', ':(exclude)task.md'];
 
-export const ALL_GATES = ['test', 'types', 'lint'] as const;
+export const ALL_GATES = ['test', 'types', 'lint'] as const satisfies readonly GateName[];
 
 /**
  * The checks run for authors and at the final gates. Below full, the security scan runs with them
  * when it's on; at full the review stage runs it, for the security reviewer.
  */
-export function runGateNames(state: Pick<RunState, 'level' | 'security_scan'>): string[] {
+export function runGateNames(state: Pick<RunState, 'level' | 'security_scan'>): GateName[] {
   if (state.level !== 'full' && scanOn(state)) return [...ALL_GATES, 'security'];
   return [...ALL_GATES];
 }

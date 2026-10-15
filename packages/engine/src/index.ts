@@ -19,3 +19,5 @@ export * from './runner/roles.js';
 export * from './runner/sdk.js';
 export * from './runner/fake.js';
 export * from './stages/index.js';
+// M4: the orchestrator.
+export * from './orchestrator/index.js';

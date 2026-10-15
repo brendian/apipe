@@ -124,7 +124,7 @@ usage notes, limit handling, cut-off note), `extractJson`/`parseModel`/`callJson
 every guard; disputes/arbiter routing; JSON retry; the usage-limit raise from inside concurrent
 reviewers; ids with round prefixes.
 
-## M4 · Orchestrator I (levels 3–5)
+## M4 · Orchestrator I (levels 3–5)  ✔ done 2026-10-15
 
 **Read:** 02 §4–§5.0, §7–§9, §13, §15; `orchestrator.py`; `test_orchestrator, test_resume, test_tests_level,
 test_levels (orchestrator parts)`.
@@ -133,7 +133,7 @@ test_levels (orchestrator parts)`.
 `resume` + `checkResumable` + `checkSameShape`, `newRunId`), SPEC (first pass only for now, blocking
 questions **stop** the run), TESTS, CODE, REVIEW (full and single), ARBITER, FINAL_GATES, budget stop,
 `report.md` every time, status/stage transitions, per-stage commits, worktree removal, `keepWorktree`.
-Levels Tests, Adversarial and Full. `askRed` may stub to a plain `needs_human` with open findings until M5.
+Levels Tests, Adversarial and Full. `askRed` may stub to a plain `needs_human` with open findings until M5. *(Built: `ask`/`askRed` record the real `Decision` (kind, stage, explanation, findings) and emit the `decision` event, so M5 only adds `decide` and the apply-on-resume paths, which are also already wired in `drive()`. `Basic`/`Reviewer` levels and Bypass-up-front are refused by the constructor until M5.)*
 
 **Tests:** the §4 scenarios in 09 that concern levels 3–5; `maxAgentCalls` worst case for those levels;
 resume at every stage boundary; interrupted run resumes.

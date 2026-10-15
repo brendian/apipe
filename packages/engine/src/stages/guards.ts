@@ -98,12 +98,7 @@ export async function stageGates(
       findings: redGateFindings(result as GateResult, newTests),
     };
   }
-  const gates = await runGates(
-    ctx.config,
-    ctx.workspace.path,
-    runGateNames(ctx.state) as ('test' | 'types' | 'lint' | 'security')[],
-    ctx.signal,
-  );
+  const gates = await runGates(ctx.config, ctx.workspace.path, runGateNames(ctx.state), ctx.signal);
   noteScannerSkipped(ctx, gates);
   return { gates, findings: checkedFindings(ctx, gates) };
 }
