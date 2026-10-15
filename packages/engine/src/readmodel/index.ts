@@ -9,3 +9,4 @@ export * from './context.js';
 export * from './items.js';
 export * from './plan-run.js';
 export * from './actions.js';
+export * from './help.js';

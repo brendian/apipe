@@ -29,7 +29,7 @@ export async function launch(
   repo?: string,
   env: Record<string, string> = {},
 ): Promise<{ app: ElectronApplication; page: Page; problems: string[]; userData: string }> {
-  const userData = scratch();
+  const userData = env['ADVPIPE_USER_DATA'] ?? scratch(); // a test may reuse a folder (relaunch)
   const app = await electron.launch({
     args: [appDir, ...(repo ? [repo] : [])],
     // Workers are always the scripted fake, whatever else a test sets (never a real agent).

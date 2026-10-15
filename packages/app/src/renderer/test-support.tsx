@@ -3,6 +3,7 @@ import {
   Prefs,
   type AdvpipeApi,
   type CleanInfoView,
+  type HelpView,
   type DraftChecks,
   type DraftView,
   type ItemList,
@@ -235,6 +236,53 @@ export const cleanInfoOf = (over: Partial<CleanInfoView> = {}): CleanInfoView =>
   ...over,
 });
 
+export const helpOf = (): HelpView => ({
+  levels: [
+    {
+      number: 1,
+      name: 'basic',
+      label: 'Basic',
+      good_for: 'typos',
+      description: 'One agent does it all.',
+      agents: 1,
+      steps: 'SOLO → FINAL CHECKS',
+      calls: '1',
+      scan: 'off',
+      dropped: ['No security scan'],
+    },
+  ],
+  level_labels: ['Basic'],
+  rule_marks: [{ rule: '1. The orchestrator is code, not an agent', marks: ['✔'] }],
+  step_states: [{ label: 'done', help: 'Finished.' }],
+  roles: [
+    {
+      role: 'coder',
+      job: 'Changes the code.',
+      inputs: 'task.md',
+      model: 'claude-opus-5-5',
+      tools: ['Read', 'Edit'],
+      writes: true,
+    },
+  ],
+  checks: [{ name: 'test', help: 'the test suite' }],
+  statuses: [
+    {
+      key: 'complete',
+      label: 'complete',
+      icon: '✔',
+      help: 'Finished with all checks passing.',
+      next: 'Merge it yourself.',
+    },
+  ],
+  limits: {
+    max_rounds_spec: 3,
+    max_rounds_tests: 2,
+    max_rounds_code: 3,
+    max_fix_passes: 3,
+    budget_usd_per_task: 15,
+  },
+});
+
 export type Stub = {
   api: AdvpipeApi;
   emit: <C extends PushChannel>(channel: C, payload: PushPayloads[C]) => void;
@@ -245,6 +293,7 @@ export type Stub = {
     unsubscribe: ReturnType<typeof vi.fn>;
     prefsSet: ReturnType<typeof vi.fn>;
     pick: ReturnType<typeof vi.fn>;
+    openLogs: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -277,6 +326,7 @@ export function makeApi(
   const unsubscribe = vi.fn(async () => ok({ ok: true }));
   const prefsSet = vi.fn(async () => ok(over.prefs ?? prefsView()));
   const pick = vi.fn(async () => ok({ opened: false }));
+  const openLogs = vi.fn(async () => ok({ ok: true }));
   const api = {
     app: {
       window: { info: async () => ok({ repo }) },
@@ -287,6 +337,10 @@ export function makeApi(
         forgetRecent: async () => ok(over.prefs ?? prefsView()),
       },
       preflight: async () => ok(over.preflight ?? goodPreflight),
+      help: async () => ok(helpOf()),
+      about: async () =>
+        ok({ name: 'advpipe', version: '0.0.0', electron: '44', chrome: '152', node: '24' }),
+      logs: { open: openLogs },
     },
     runs: {
       list: runsList,
@@ -332,7 +386,7 @@ export function makeApi(
   return {
     api,
     emit: (channel, payload) => listeners.get(channel)?.forEach((cb) => cb(payload)),
-    fns: { runsList, runsDetail, subscribe, unsubscribe, prefsSet, pick },
+    fns: { runsList, runsDetail, subscribe, unsubscribe, prefsSet, pick, openLogs },
   };
 }
 

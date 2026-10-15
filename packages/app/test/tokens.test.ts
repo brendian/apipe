@@ -44,4 +44,14 @@ describe('design tokens (docs/05 §4.1)', () => {
     expect(all).not.toMatch(/\*:focus\s*\{[^}]*outline:\s*none/);
     expect(all).not.toMatch(/@import|url\(\s*['"]?https?:/);
   });
+
+  it('adapts to a tablet width, and the page itself has no inline script or style', () => {
+    const all = ['base.css', 'components.css'].map(css).join('\n');
+    expect(all).toMatch(/@media \(max-width: 48rem\)/);
+    const html = readFileSync(
+      path.resolve(import.meta.dirname, '../src/renderer/index.html'),
+      'utf-8',
+    );
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>\s*\S|<style|\sstyle=/);
+  });
 });

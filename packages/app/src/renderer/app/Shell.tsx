@@ -28,6 +28,8 @@ export function titleOf(route: Route): string {
       return 'Help';
     case 'welcome':
       return 'Welcome';
+    case 'not-found':
+      return 'Page not found';
     default:
       return 'advpipe';
   }
@@ -55,6 +57,9 @@ export function Shell({
     document.title = repo
       ? `${titleOf(route)} — advpipe — ${repo.name}`
       : `${titleOf(route)} — advpipe`;
+    // The first page shown (after the boot screen) keeps the focus where it is, so the skip link
+    // is the first Tab stop of a fresh window; later navigations move focus to the new heading.
+    if (route.name === 'boot') return;
     if (first.current) {
       first.current = false;
       return;
@@ -93,6 +98,42 @@ export function Shell({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [back, forward]);
+
+  // Single-key shortcuts (docs/05 §4.3): `g r`, `g i`, `g h`, `n`. They never fire while someone is
+  // typing, with a modifier held, or on the welcome page (no repo to go to).
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!repo) return;
+    const clear = (): void => {
+      if (pending.current) clearTimeout(pending.current);
+      pending.current = null;
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      if (el?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) {
+        return;
+      }
+      if (pending.current) {
+        clear();
+        const to = { r: '/runs', i: '/items', h: '/help' }[e.key];
+        if (to) {
+          e.preventDefault();
+          navigate(to);
+        }
+      } else if (e.key === 'g') {
+        pending.current = setTimeout(clear, 1500);
+      } else if (e.key === 'n' && !el?.closest('dialog')) {
+        e.preventDefault();
+        navigate('/runs/new');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      clear();
+    };
+  }, [navigate, repo]);
 
   const current = (name: string): 'page' | undefined =>
     (name === 'runs' &&

@@ -135,8 +135,24 @@ export function RoundPanel({
   round: RoundViewData;
   defaultOpen: boolean;
 }) {
+  const empty =
+    !r.notice &&
+    !r.decision &&
+    r.asked.length === 0 &&
+    r.author_html === null &&
+    !r.task_html &&
+    r.gates.length === 0 &&
+    !r.diff &&
+    r.critics.length === 0 &&
+    r.test_fix_html === null;
   return (
     <Panel panelKey={`${runId}/${r.key}`} title={r.title} summary={r.outcome} open={defaultOpen}>
+      {empty ? (
+        <p className="muted">
+          Nothing has been written for this round yet. If the run is still working, it appears as it
+          goes; if the run has ended, the files are missing from its folder.
+        </p>
+      ) : null}
       {r.notice ? <p className="muted">{r.notice}</p> : null}
       {r.decision ? (
         <p>

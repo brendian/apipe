@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,7 @@ import {
   itemDeleteInfo,
   loadContext,
   loadDetail,
+  loadHelp,
   loadItems,
   loadRuns,
   loadUsage,
@@ -115,6 +117,21 @@ if (!app.requestSingleInstanceLock()) {
     const workerOptions = e2e
       ? { workerEntry: process.env['ADVPIPE_WORKER_ENTRY'] ?? join(userData, 'no-such-worker.js') }
       : {};
+    const host = {
+      about: () => ({
+        name: app.getName(),
+        version: app.getVersion(),
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        node: process.versions.node,
+      }),
+      openLogs: async () => {
+        // Opens the folder in the file manager; a failure is logged, not shown (nothing to act on).
+        mkdirSync(join(userData, 'logs'), { recursive: true });
+        const failed = e2e ? '' : await shell.openPath(join(userData, 'logs'));
+        if (failed) log(`open log folder failed: ${failed}`);
+      },
+    };
     const handlers = createHandlers({
       prefs,
       engine: {
@@ -122,6 +139,7 @@ if (!app.requestSingleInstanceLock()) {
         loadDetail,
         loadContext,
         loadUsage,
+        loadHelp,
         preflight,
         resolveItemsDir,
         loadItems,
@@ -151,6 +169,7 @@ if (!app.requestSingleInstanceLock()) {
           else await shell.openExternal(url);
         },
       },
+      host,
       logs: windows.logs,
       windows,
       exists: isDirectory,
@@ -176,7 +195,21 @@ if (!app.requestSingleInstanceLock()) {
       });
     }
 
-    installMenu(windows, devUrl !== null);
+    installMenu(windows, devUrl !== null, {
+      openLogs: host.openLogs,
+      about: () => {
+        const a = host.about();
+        void dialog.showMessageBox({
+          type: 'info',
+          title: 'About advpipe',
+          message: `${a.name} ${a.version}`,
+          detail:
+            'Drives a task through AI agents that check each other, and leaves a branch to ' +
+            `review. It never merges or pushes.\n\nElectron ${a.electron} · Chromium ${a.chrome} · Node ${a.node}`,
+          buttons: ['OK'],
+        });
+      },
+    });
     app.on('second-instance', (_event, argv, cwd) => openFromArgs(argv, cwd, windows));
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) void windows.open(null);

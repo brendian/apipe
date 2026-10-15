@@ -128,7 +128,7 @@ acceptance-criteria / open-question / BLOCKING highlighting, §5.3) · `DiffView
   open run page (polite, once per change).
 - All dialogs trap focus, close on Esc, restore focus. Destructive confirmations focus the *safe*
   button first.
-- Keyboard: `g r` runs, `g i` items, `n` new run (documented in Help); all buttons reachable in order.
+- Keyboard: `g r` runs, `g i` items, `g h` help, `n` new run (documented in Help; ignored while typing in a field, with a modifier held, and on the welcome page); all buttons reachable in order. *(Built, M11.)* A fresh window leaves the focus alone so the skip link is the first Tab stop; every later navigation moves focus to the new page's heading.
 - Responsive down to a **768 px** window: less padding, wrapping top bar, tables' action cells wrap;
   wide content (`pre`, commands, tables) scrolls **inside** its box, never the page.
 - Respect `prefers-reduced-motion` (no animations beyond a 100 ms fade; the live-run indicator is a
@@ -513,6 +513,8 @@ it, so a stray call can't skip the page.
 
 ### 5.8 Help (`/help`)
 
+*(Built, M11: `app.help` returns the tables; the prose is the original's with the browser, token and terminal wording changed. Sections: the levels table and the rules-by-level table, the steps, the agents (with each role's tools), checks, when a run asks you, subscription or Console credits, statuses, using advpipe, keyboard, where things are stored, money and safety, words, and About with *Open log folder*. The same two items are in the Help menu; About there is a native message box. The "Open log folder" in the original's wording is the host's `<userData>/logs`.)*
+
 The pipeline in plain words, built from the same tables the code uses so it **cannot drift** (a test
 checks that every status, role and check is covered): *What advpipe does* · *The steps* (SPEC, TESTS,
 CODE, REVIEW, ARBITER, FINAL CHECKS and what each does, from `STAGE` tables) · *Statuses* (every key of
@@ -589,6 +591,8 @@ the route is ever shown): `started`, `resumed`, `answered`, `decided`, `handed_o
 `finished`, `cancelled`, `cleaned`, `item_saved`, `item_deleted`, …
 
 ## 9. Empty and error states (checklist)
+
+*(Audited in M11 against the built pages: each item below has its text; two were added then: a round panel with no files says so, and an unknown route is a "Page not found" page.)*
 
 Runs list empty · work items empty / folder missing · run not found · run unreadable · starting-up with a
 dead process · task.md missing · config.json unreadable (shown raw) · standards doc missing · round files

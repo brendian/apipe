@@ -33,6 +33,8 @@ files. Change one deliberately, and update this file in the same change. One cop
 
 Added in M7 (app dev dependencies, exact): jsdom 30.1.3, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.8 (installed, not used yet), vitest-axe 0.1.0. `@advpipe/engine` is now a dependency of the app (main imports it). No state library: a hand-rolled router and a `useRemote` hook are enough (ADR-3).
 
+Added in M11: `axe-core` 4.14.0 as a root dev dependency (exact). It was already installed as `vitest-axe`'s dependency (same copy, deduped); the Playwright suite now uses it directly, injected into the real window, because colour contrast needs real layout.
+
 Added in M10: nothing new installed. `@radix-ui/react-dialog` stays installed but unused: Radix Dialog injects a `<style>` element, which the app's CSP (`style-src 'self'`) blocks, so confirmations use a native `<dialog>`.
 
 Added in M9: nothing new installed. `@radix-ui/react-slider` is now in use (the New run level slider); its Slider needs `ResizeObserver`, which jsdom lacks, so the page tests define a stub.

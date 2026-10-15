@@ -43,6 +43,7 @@ function setup() {
       loadDetail: vi.fn(() => null),
       loadContext: vi.fn(async () => null),
       loadUsage: vi.fn(),
+      loadHelp: vi.fn(() => ({ marker: 'help' }) as never),
       preflight: vi.fn(async () => goodPreflight),
       resolveItemsDir: vi.fn((repo: string, rel: string) => `${repo}/${rel}`),
       loadItems: vi.fn(async () => ({
@@ -70,6 +71,16 @@ function setup() {
       revealPath: vi.fn(() => '/home/me/proj/.advpipe/runs/r1'),
     },
     shell: { showItemInFolder: vi.fn(), openExternal: vi.fn(async () => undefined) },
+    host: {
+      about: vi.fn(() => ({
+        name: 'advpipe',
+        version: '1',
+        electron: '2',
+        chrome: '3',
+        node: '4',
+      })),
+      openLogs: vi.fn(async () => undefined),
+    },
     logs: { subscribe: vi.fn(), unsubscribe: vi.fn() },
     windows: { pick: vi.fn(async () => true), open: vi.fn(async () => true) },
     exists: () => true,
@@ -123,6 +134,9 @@ describe('IPC handlers', () => {
       ['app.repo.pick', { path: '/etc' }], // the picker takes no path
       ['app.preflight', { repo: '/etc' }],
       ['usage.get', { x: 1 }],
+      ['app.logs.open', { path: '/etc' }], // main knows where its logs are
+      ['app.help', { x: 1 }],
+      ['app.about', { x: 1 }],
       ['items.read', { rel: 'x'.repeat(301) }],
       ['items.read', { rel: '../x.md', repo: '/etc' }],
       ['items.save', { rel: 'a.md', body: 'x'.repeat(200_001) }],
@@ -398,6 +412,16 @@ describe('IPC handlers', () => {
       ['https://claude.ai/settings/usage'],
       ['https://platform.claude.com/settings/billing'],
     ]);
+  });
+
+  it('help, about and the log folder take nothing and need no repo', async () => {
+    const { deps, handlers } = setup();
+    expect((await call(handlers, 'app.about', {}, welcome)).ok).toBe(true);
+    await call(handlers, 'app.logs.open', {}, welcome);
+    expect(deps.host.openLogs).toHaveBeenCalledTimes(1);
+    // The help view is parsed on the way out: a made-up one is refused, not passed through.
+    expect((await call(handlers, 'app.help', {})).ok).toBe(false);
+    expect(deps.engine.loadHelp).toHaveBeenCalledTimes(1);
   });
 
   it('parses its own output: a handler cannot leak extra fields', async () => {

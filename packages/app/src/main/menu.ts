@@ -2,7 +2,11 @@ import { app, Menu, type MenuItemConstructorOptions } from 'electron';
 import type { Windows } from './windows.js';
 
 /** The native menu (docs/05 §2). Items navigate the window; they never bypass a screen's checks. */
-export function installMenu(windows: Windows, devTools: boolean): void {
+export function installMenu(
+  windows: Windows,
+  devTools: boolean,
+  host: { openLogs(): Promise<void>; about(): void },
+): void {
   const mac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
     ...(mac ? [{ role: 'appMenu' as const }] : []),
@@ -53,7 +57,11 @@ export function installMenu(windows: Windows, devTools: boolean): void {
     { role: 'windowMenu' },
     {
       label: 'Help',
-      submenu: [{ label: 'Help page', click: () => windows.menu('help') }],
+      submenu: [
+        { label: 'Help page', click: () => windows.menu('help') },
+        { label: 'Open log folder', click: () => void host.openLogs() },
+        { label: 'About advpipe', click: () => host.about() },
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { happyJson, scriptEnv, type JsonScript } from '../packages/engine/test/helpers/worker.js';
+import { check } from './a11y.js';
 import { launch, makeRepo, workerEntry } from './support.js';
 
 // Scenario 7 (docs/09 §9): work items, byte-exact round trips, the stale-file guard, and starting
@@ -13,9 +14,12 @@ test('work items: create, edit without touching, rename, delete; stale save refu
   const repo = makeRepo();
   const { app, page, problems } = await launch(repo);
   const items = path.join(repo, 'work-items');
+  const failures: string[] = [];
   try {
+    await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible();
     await page.getByRole('link', { name: 'Work items', exact: true }).click();
     await expect(page.getByText(/no work-items\/ folder/)).toBeVisible();
+    await check(page, 'work items (no folder)', failures);
 
     // Create, with a run setting from the select.
     await page.getByRole('button', { name: 'New work item' }).click();
@@ -52,6 +56,7 @@ test('work items: create, edit without touching, rename, delete; stale save refu
 
     // Rename, then delete behind its confirmation page.
     await page.getByRole('link', { name: 'Rename' }).click();
+    await check(page, 'rename page', failures);
     await page.getByLabel('New name').fill('server/renamed');
     await page.getByRole('button', { name: 'Rename', exact: true }).click();
     await expect(page.getByText('Renamed.', { exact: true })).toBeVisible();
@@ -60,10 +65,12 @@ test('work items: create, edit without touching, rename, delete; stale save refu
 
     await page.getByRole('link', { name: 'Delete' }).click();
     await expect(page.getByRole('button', { name: 'Keep it' })).toBeFocused();
+    await check(page, 'delete page', failures);
     await expect(page.getByText("It isn't in git, so this can't be undone.")).toBeVisible();
     await page.getByRole('button', { name: 'Delete it' }).click();
     await expect(page.getByText('Work item deleted.')).toBeVisible();
     expect(existsSync(path.join(items, 'server', 'renamed.md'))).toBe(false);
+    expect(failures).toEqual([]);
     expect(problems).toEqual([]);
   } finally {
     await app.close();

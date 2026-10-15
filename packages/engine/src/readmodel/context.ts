@@ -122,7 +122,7 @@ export const CHECK_HELP: Readonly<Record<string, string>> = {
   security: 'the security scanner, run once before the review',
 };
 /** The pipeline's checks, then the scanner (which runs only before the review). */
-const CHECKS = [...ALL_GATES, 'security'] as const;
+export const CHECKS = [...ALL_GATES, 'security'] as const;
 
 // A git revision from run.json, before it goes on a git command line (an argument list, never a
 // shell): no leading '-', so it can't be read as an option.

@@ -8,11 +8,12 @@ import { PanelStateProvider } from '../state/panels.js';
 import { WindowProvider } from '../state/window.js';
 import { Callout } from '../components/Callout.js';
 import { ContextPage } from '../pages/ContextPage.js';
+import { Help } from '../pages/Help.js';
 import { ItemDelete, ItemRename } from '../pages/ItemConfirm.js';
 import { ItemEdit, ItemNew } from '../pages/ItemEditor.js';
 import { Items } from '../pages/Items.js';
 import { NewRun } from '../pages/NewRun.js';
-import { Placeholder } from '../pages/Placeholder.js';
+import { NotFound } from '../pages/NotFound.js';
 import { RunPage } from '../pages/RunPage.js';
 import { CleanAll, CleanConfirm, DecideConfirm } from '../pages/RunConfirm.js';
 import { Runs } from '../pages/Runs.js';
@@ -51,9 +52,9 @@ function Routes() {
     case 'item-delete':
       return <ItemDelete path={route.path} />;
     case 'help':
-      return <Placeholder title="Help" />;
+      return <Help />;
     default:
-      return <Placeholder title="Not found" />;
+      return <NotFound />;
   }
 }
 

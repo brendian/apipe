@@ -17,6 +17,7 @@ import {
   TASK_MD,
   TEST_CLAMP,
 } from '../packages/engine/test/helpers/samples.js';
+import { check } from './a11y.js';
 import { launch, makeRepo, workerEntry } from './support.js';
 
 // Scenarios 2-6 (docs/09 §9): answering and Bypass, red checks with a note then take over, scan
@@ -73,6 +74,7 @@ const chip = (page: Page, label: string) => page.locator('.facts .chip', { hasTe
 test('questions: answer one, let the agent decide the other; the answers reach task.md', async () => {
   const repo = makeRepo();
   const { app, page, problems, userData } = await launch(repo);
+  const failures: string[] = [];
   try {
     const blocked = TASK_MD.replace(
       '## Open questions\n- None',
@@ -93,6 +95,7 @@ test('questions: answer one, let the agent decide the other; the answers reach t
     await open(page);
     await expect(chip(page, 'needs answers')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('heading', { name: "Answer the spec's questions" })).toBeVisible();
+    await check(page, 'answer form', failures);
     await page.getByLabel(/should lo > hi swap or throw/).fill('Throw a RangeError.');
     await page.getByLabel(/Let the agent decide Q2/).check();
     await page.getByRole('button', { name: 'Save answers and continue' }).click();
@@ -106,6 +109,7 @@ test('questions: answer one, let the agent decide the other; the answers reach t
     await expect(task).toContainText('Throw a RangeError.');
     await expect(task).toContainText("agent's best judgement");
     await expect(task).toContainText('Yes: equal bounds are fine.');
+    expect(failures).toEqual([]);
     expect(problems).toEqual([]);
   } finally {
     await app.close();
@@ -115,6 +119,7 @@ test('questions: answer one, let the agent decide the other; the answers reach t
 test('red checks: fix with a note, then take over behind its confirmation page', async () => {
   const repo = makeRepo();
   const { app, page, problems, userData } = await launch(repo);
+  const failures: string[] = [];
   try {
     const scripts = happyJson();
     scripts['coder'] = [w(IMPL_WRONG), 'tried', 'tried', 'tried'];
@@ -125,6 +130,7 @@ test('red checks: fix with a note, then take over behind its confirmation page',
     await open(page);
     await expect(chip(page, 'needs a decision')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText('Fix pass 1 of 3.')).toBeVisible();
+    await check(page, 'decision panel', failures);
     await page.getByLabel(/A note for the author/).fill('keep the public signature');
     await page.getByRole('button', { name: 'Another fix pass' }).click();
     await expect(page.getByText('Your choice is saved and the run is carrying on.')).toBeVisible();
@@ -134,10 +140,12 @@ test('red checks: fix with a note, then take over behind its confirmation page',
     // Taking over asks first: the safe button has the focus, and nothing happens until the other one.
     await page.getByRole('link', { name: /I'll take over/ }).click();
     await expect(page.getByRole('button', { name: 'Keep it waiting' })).toBeFocused();
+    await check(page, 'take over confirmation', failures);
     expect(run.log.readState().ended_by).toBe('');
     await page.getByRole('button', { name: 'Take over', exact: true }).click();
     await expect(chip(page, 'handed over')).toBeVisible({ timeout: 20_000 });
     expect(run.log.readState().worktree_removed).toBe(true);
+    expect(failures).toEqual([]);
     expect(problems).toEqual([]);
   } finally {
     await app.close();
@@ -200,6 +208,7 @@ test('scan hits: ignore on one run, block on another', async () => {
 test('usage limit: the fixed link, Try again; and Finish as is, which clean up guards', async () => {
   const repo = makeRepo();
   const { app, page, problems, userData } = await launch(repo);
+  const failures: string[] = [];
   try {
     // Try again.
     const limited = begin(repo, userData, { scripts: { 'spec-writer': [{ limit: {} }] } });
@@ -207,6 +216,7 @@ test('usage limit: the fixed link, Try again; and Finish as is, which clean up g
     await open(page);
     await expect(chip(page, 'paused: usage limit')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/If the limit is still in force/).first()).toBeVisible();
+    await check(page, 'paused panel', failures);
     await page.getByRole('button', { name: 'Add extra usage' }).click();
     await expect
       .poll(() => readFileSync(path.join(userData, 'logs', 'main.log'), 'utf-8'), {
@@ -233,13 +243,16 @@ test('usage limit: the fixed link, Try again; and Finish as is, which clean up g
     expect(existsSync(second.log.readState().worktree)).toBe(true);
 
     await page.getByRole('link', { name: 'Clean up…' }).click();
+    await check(page, 'clean up page', failures);
     await page.getByRole('button', { name: 'Clean it up' }).click();
     await expect(page.getByRole('alert')).toContainText('Delete anyway');
+    await check(page, 'clean up refused', failures);
     expect(existsSync(second.log.readState().worktree)).toBe(true);
     await page.getByLabel(/Delete anyway/).check();
     await page.getByRole('button', { name: 'Clean it up' }).click();
     await expect(chip(page, 'finished as is')).toBeVisible({ timeout: 20_000 });
     expect(existsSync(second.log.readState().worktree)).toBe(false);
+    expect(failures).toEqual([]);
     expect(problems).toEqual([]);
   } finally {
     await app.close();

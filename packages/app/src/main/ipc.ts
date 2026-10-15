@@ -23,6 +23,8 @@ import {
   type RunForm,
   type RunPlan,
   type CleanInfoView,
+  type AboutView,
+  type HelpView,
   WorkItemError,
 } from '@advpipe/contracts';
 import { ActionError, ItemError, NewRunError } from '@advpipe/engine';
@@ -65,6 +67,7 @@ export interface Deps {
     loadDetail(repo: string, runId: string): RunDetailOut;
     loadContext(repo: string, runId: string): Promise<ContextView | null>;
     loadUsage(repo: string): UsageView;
+    loadHelp(): HelpView;
     preflight(repo: string, itemsDir: string): Promise<Preflight>;
     /** The work-items folder as an absolute path inside the repo; throws ItemPathError. */
     resolveItemsDir(repo: string, rel: string): string;
@@ -110,6 +113,11 @@ export interface Deps {
   shell: {
     showItemInFolder(path: string): void;
     openExternal(url: string): Promise<void>;
+  };
+  /** What only the host knows: its own versions, and its log folder (opened, never shown as a path). */
+  host: {
+    about(): AboutView;
+    openLogs(): Promise<void>;
   };
   logs: {
     subscribe(windowId: number, repo: string, runId: string, offset: number): void;
@@ -200,6 +208,12 @@ export function createHandlers(deps: Deps): Handlers {
       const repo = need(ctx);
       const dir = deps.prefs.get().items_dir[repo] ?? deps.defaultItemsDir;
       return deps.engine.preflight(repo, dir);
+    },
+    'app.help': async () => deps.engine.loadHelp(),
+    'app.about': async () => deps.host.about(),
+    'app.logs.open': async () => {
+      await deps.host.openLogs();
+      return { ok: true };
     },
     'runs.list': async ({ show }, ctx) => deps.engine.loadRuns(need(ctx), show),
     'runs.detail': async ({ runId }, ctx) =>

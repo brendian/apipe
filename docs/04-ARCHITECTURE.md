@@ -249,6 +249,8 @@ text, never HTML).
 | `app.repo.pick` | – | opens the native folder dialog **in main**; returns `{opened: path}` (renderer never sees an arbitrary path to act on) |
 | `app.repo.openRecent` / `app.repo.forgetRecent` | `{index}` | opens that repo (focusing its window if open; a window with no repo becomes that repo's window) / removes it from the list (`PrefsView`) |
 | `app.preflight` | – | `{git:{ok,version}, repo:{ok,is_git,has_commit,branch,dirty}, claude:{ok,login,version}, items_dir:{path,exists}}`; each part also has `level` (`ok`/`warn`/`bad`) and `text`, the plain-words line the Welcome page shows (snake_case, like every contract) |
+| `app.help` / `app.about` | – | `HelpView` (the Help page's tables, built by the engine from the code's own tables: statuses, roles with models and tools, checks, levels, rules, default limits) / `AboutView` (the app's name and its Electron, Chromium and Node versions; nothing about the user) |
+| `app.logs.open` | – | `{ok}`: main opens its own log folder in the file manager. The window names no path |
 | `runs.list` | `{show: 'all'\|'running'\|'needs_you'\|'complete'}` | `RunList` (`rows` for that filter, `counts` for all four, `unreadable`) |
 | `runs.detail` | `{runId}` | `RunDetail \| Starting \| null`: null if the directory is missing; an **error** ("Can't read this run: …") if run.json can't be read. *`loadDetail` (M8)* |
 | `runs.context` | `{runId}` | `ContextView \| null` |

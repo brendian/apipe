@@ -229,7 +229,9 @@ desktop notifications and badge, the `VALID` matrix enforced in the host.
 **Tests:** 09 §8 behaviours; e2e scenarios 2–6; an action that is no longer valid is refused with the
 reload message; destructive actions refused without `confirm`.
 
-## M11 · Polish, help and the e2e suite
+## M11 · Polish, help and the e2e suite  ✔ done 2026-10-15
+
+*(Built. Help: `contracts/src/help.ts` (`STATUS_NEXT`, `ROLE_JOBS`, `RULES`, `ruleMarks`, the `HelpView`/`AboutView` schemas) + `engine/src/readmodel/help.ts` (`loadHelp`, built from `STATUSES`, `STEP_STATES`, `ROLE_TOOLS`/`ROLE_MODEL`/`ROLE_INPUTS`, `CHECK_HELP`, `LEVEL_INFO`/`SHAPES`, the default `Config`) + `renderer/pages/Help.tsx`; channels `app.help`, `app.about`, `app.logs.open` (no input: main knows its own log folder). The Help menu has *Open log folder* and *About advpipe* (a native message box); the About section of the Help page shows the versions. Keyboard: `g r`, `g i`, `g h`, `n` (not while typing, not with a modifier). The first page of a fresh window no longer takes the focus, so the skip link is the first Tab stop; later navigations still move focus to the page heading. Wide Help tables scroll inside a focusable, labelled region. An unknown route is a real "Page not found" page. A round panel with no files says so. e2e: `a11y.ts` runs axe-core in the real window in both themes (colour contrast included) over every page, at 1100 and 768 px; `polish.spec.ts` (scenarios 8–10: closing the app mid-run, console/CSP/no network, keyboard, theme persistence, reduced motion); `npm run screenshots` (`e2e/screenshots.shots.ts`, `playwright.screenshots.config.ts`) writes `docs/screenshots/*.png`. Theme persistence and tablet CSS were already in from M7. `axe-core` is now a direct dev dependency (it was already installed through `vitest-axe`).)*
 
 **Read:** 05 §4, §5.8, §9; 09 §8–§9.
 

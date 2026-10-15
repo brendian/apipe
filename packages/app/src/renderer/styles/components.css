@@ -880,3 +880,45 @@ a.plain {
 .run-actions .inline-form input {
   width: 8rem;
 }
+
+/* Help */
+.lead {
+  font-size: 1.1rem;
+}
+.toc ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.help-block {
+  scroll-margin-top: var(--space-4);
+}
+.help-defs {
+  margin: var(--space-3) 0;
+}
+.help-defs dt {
+  font-weight: 600;
+}
+.help-defs dd {
+  margin: 0 0 var(--space-2);
+}
+.help-steps li {
+  margin-bottom: var(--space-2);
+}
+.help-table td {
+  min-width: 6rem;
+}
+.nowrap {
+  white-space: nowrap;
+}
+kbd {
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+}

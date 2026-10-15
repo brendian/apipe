@@ -30,7 +30,7 @@ test('the window is hardened: no Node, named bridge only, CSP enforced, clean co
       require: 'undefined',
       process: 'undefined',
       bridge: ['app', 'items', 'newrun', 'on', 'run', 'runs', 'usage'],
-      appMethods: ['preflight', 'prefs', 'repo', 'window'],
+      appMethods: ['about', 'help', 'logs', 'preflight', 'prefs', 'repo', 'window'],
     });
 
     // CSP: an injected inline script and a network fetch are both blocked. (page.evaluate itself

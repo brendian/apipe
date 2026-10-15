@@ -222,8 +222,9 @@ Minimum scenarios:
    by the renderer.
 10. **Keyboard + a11y smoke** on the main pages; light/dark/system; 768 px width.
 
-`npm run screenshots` drives scenarios 1–7 and writes `docs/screenshots/*.png` (port of
-`scripts/ui_screenshots.py`).
+`npm run screenshots` (`e2e/screenshots.shots.ts`, run by `playwright.screenshots.config.ts`; not part of `test:e2e`) drives a demo repo with scripted runs in several states and writes `docs/screenshots/*.png` (port of `scripts/ui_screenshots.py`).
+
+*(Built, M11.)* Scenarios 8–10 are `e2e/polish.spec.ts`. Accessibility is checked in the real window by `e2e/a11y.ts` (axe-core, light and dark, plus "the page doesn't scroll sideways"): every page at 1100 and 768 px in `polish.spec.ts`, and the pages a state reaches (answer form, decision panel, confirmation pages, paused panel, clean-up, rename/delete) inside the scenario that gets there. Keep a new page or state in one of these.
 
 ## 10. Real-API checks (manual; owner's go-ahead each time)
 

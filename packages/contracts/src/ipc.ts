@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CleanInfoView, LinkKey } from './actions.js';
+import { AboutView, HelpView } from './help.js';
 import { isValidRunId, QUESTION_ID_RE } from './primitives.js';
 import { ContextView, RunDetailOut, type LogPush } from './detail.js';
 import {
@@ -60,6 +61,11 @@ export const IPC_TABLE = {
     output: PrefsView,
   },
   'app.preflight': { input: None, output: Preflight },
+  // Help and About (docs/05 §5.8): fixed text built from the code's own tables; no repo needed.
+  'app.help': { input: None, output: HelpView },
+  'app.about': { input: None, output: AboutView },
+  // Opens the host's log folder in the file manager. Takes nothing: main knows where it is.
+  'app.logs.open': { input: None, output: z.strictObject({ ok: z.boolean() }) },
   'runs.list': {
     input: z.strictObject({ show: FilterKeySchema }),
     output: RunList,
