@@ -226,6 +226,8 @@ Minimum scenarios:
 
 *(Built, M11.)* Scenarios 8–10 are `e2e/polish.spec.ts`. Accessibility is checked in the real window by `e2e/a11y.ts` (axe-core, light and dark, plus "the page doesn't scroll sideways"): every page at 1100 and 768 px in `polish.spec.ts`, and the pages a state reaches (answer form, decision panel, confirmation pages, paused panel, clean-up, rename/delete) inside the scenario that gets there. Keep a new page or state in one of these.
 
+*(Built, M12.)* `npm run test:packaged` (`e2e/packaged.smoke.ts`, `playwright.packaged.config.ts`, not part of `test:e2e`) packs the app (`release/<os>-unpacked`) and tests **the package**: the window opens and its preflight finds the bundled Claude Code, and a detached worker from `app.asar.unpacked` spawns the unpacked binary. The worker test runs with an empty `HOME`/`CLAUDE_CONFIG_DIR` and no `ANTHROPIC_*`/OAuth variables, so the agent call can only be refused ("Not logged in"), never billed; it is skipped on macOS, where a login can live in the keychain.
+
 ## 10. Real-API checks (manual; owner's go-ahead each time)
 
 Not automated, not in CI; report what was checked **and what wasn't**:

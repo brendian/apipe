@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
@@ -13,10 +14,35 @@ const devWithoutCspMeta = (): Plugin => ({
     html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, ''),
 });
 
+// The role prompts are read at run time from a `prompts/` folder beside the bundle (docs/04 §1,
+// docs/10 §4): copied from the source of truth, so a packaged app carries them too.
+const copyPrompts = (): Plugin => ({
+  name: 'advpipe:copy-prompts',
+  apply: 'build',
+  writeBundle(options) {
+    const from = resolve(import.meta.dirname, '../../assets/prompts');
+    const to = join(options.dir ?? resolve(import.meta.dirname, 'out/main'), 'prompts');
+    mkdirSync(to, { recursive: true });
+    for (const f of readdirSync(from).filter((n) => n.endsWith('.md'))) {
+      copyFileSync(join(from, f), join(to, f));
+    }
+  },
+});
+
 export default defineConfig({
   main: {
+    plugins: [copyPrompts()],
     build: {
-      rollupOptions: { input: { index: resolve(import.meta.dirname, 'src/main/index.ts') } },
+      // Our own packages are bundled into main and the worker. What stays external (the package's
+      // `dependencies`) is the Agent SDK, its peers and zod: they ship in node_modules, unpacked.
+      externalizeDeps: { exclude: ['@advpipe/contracts', '@advpipe/engine'] },
+      rollupOptions: {
+        input: {
+          index: resolve(import.meta.dirname, 'src/main/index.ts'),
+          // The detached worker a run is driven by (docs/04 §3.1): started as `<app> worker.js --start …`.
+          worker: resolve(import.meta.dirname, '../engine/dist/src/worker.js'),
+        },
+      },
     },
   },
   preload: {

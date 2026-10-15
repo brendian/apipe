@@ -29,6 +29,7 @@ import {
   revealPath,
   saveItem,
   startNewRun,
+  unpackedPath,
 } from '@advpipe/engine';
 import { APP_ORIGIN, createHandlers, dispatch } from './ipc.js';
 import { createLogger } from './log.js';
@@ -116,7 +117,8 @@ if (!app.requestSingleInstanceLock()) {
     // can't spend anything by forgetting to set it (docs/09 §1).
     const workerOptions = e2e
       ? { workerEntry: process.env['ADVPIPE_WORKER_ENTRY'] ?? join(userData, 'no-such-worker.js') }
-      : {};
+      : // The worker is bundled beside this file; a packaged app reads it from outside the asar.
+        { workerEntry: unpackedPath(join(here, 'worker.js')) };
     const host = {
       about: () => ({
         name: app.getName(),

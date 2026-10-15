@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { LOGIN_LABELS, type Preflight } from '@advpipe/contracts';
+import { unpackedPath } from '../core/asar.js';
 import { git, gitOk } from '../core/git.js';
 import { loadCache } from '../core/usage.js';
 
@@ -48,7 +49,7 @@ export function findClaudeBinary(): { path: string; version: string } | null {
       );
       if (!existsSync(binary)) continue;
       const version = (JSON.parse(readFileSync(pkgFile, 'utf-8')) as { version?: string }).version;
-      return { path: binary, version: version ?? '' };
+      return { path: unpackedPath(binary), version: version ?? '' };
     } catch {
       // try the next one
     }

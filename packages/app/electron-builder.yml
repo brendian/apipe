@@ -1,0 +1,32 @@
+# Packaging (docs/04 §3, docs/06 §8). Run from packages/app after `npm run build` at the root.
+appId: dev.advpipe.app
+productName: advpipe
+executableName: advpipe
+artifactName: advpipe-${version}-${os}-${arch}.${ext}
+directories:
+  output: ../../release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+# Run outside the asar: the worker (spawned as `<app> worker.js`) and its prompts, and the Agent
+# SDK with its native Claude Code binary (an executable inside an asar can't be spawned).
+asarUnpack:
+  - out/main/**
+  - node_modules/@anthropic-ai/**
+npmRebuild: false
+# Nothing is published from here: the owner uploads installers by hand.
+publish: null
+linux:
+  target: [AppImage, deb]
+  category: Development
+  maintainer: advpipe <advpipe@localhost>
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

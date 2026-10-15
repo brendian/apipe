@@ -214,9 +214,9 @@ For a **packaged** app:
 - The binary must be **outside the asar** (an executable inside an asar can't be spawned): configure
   `asarUnpack` for `node_modules/@anthropic-ai/claude-agent-sdk*/**`, and pass
   `pathToClaudeCodeExecutable` resolved against `process.resourcesPath` + `app.asar.unpacked/…`.
-  **Spike S5 (half done)**: the platform package holds one native executable named `claude`
+  **Spike S5 (done for Linux x64 in M12; macOS/Windows by CI)**: the platform package holds one native executable named `claude`
   (`@anthropic-ai/claude-agent-sdk-<os>-<arch>/claude`; `.exe` on Windows) and the SDK uses it with no Node/Bun
-  on its path; M12 still proves the spawn from `app.asar.unpacked` in a packaged build. Original note:
+  on its path; M12 proved the spawn from `app.asar.unpacked` in a packaged Linux build (`findClaudeBinary` returns the unpacked path and the worker passes it as `pathToClaudeCodeExecutable`). Original note:
   find the correct file inside the optional package and confirm the SDK doesn't need
   Node/Bun on `PATH` (`Options.executable?: 'bun'|'deno'|'node'` suggests a JS CLI path exists; the
   native optional packages should make it unnecessary).

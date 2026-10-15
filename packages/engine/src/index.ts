@@ -22,6 +22,7 @@ export * from './runner/fake.js';
 export * from './stages/index.js';
 // M4: the orchestrator.
 export * from './orchestrator/index.js';
+export * from './core/asar.js';
 export * from './core/proc.js';
 export * from './core/control.js';
 // M7: read models for the app shell and the runs list.

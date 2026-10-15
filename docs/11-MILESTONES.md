@@ -241,7 +241,9 @@ folder, `npm run screenshots`, the complete Playwright suite (09 §9), CSP/conso
 
 **Done when:** axe is clean on every page in both themes; the e2e suite passes on Linux under xvfb.
 
-## M12 · Packaging and real verification
+## M12 · Packaging and real verification  ◐ packaging done 2026-10-15 (Linux built and smoke-tested by hand; macOS and Windows built only by CI; the real-login checks are waiting for the owner's go-ahead)
+
+*(Built. `packages/app/electron-builder.yml`: AppImage + deb, dmg, nsis, `asar: true`, `asarUnpack` of `out/main/**` (the worker, its chunks and `prompts/`) and `node_modules/@anthropic-ai/**` (the SDK and its native binary); installers are named `advpipe-<version>-<os>-<arch>.<ext>` into `release/`. The main bundle now **bundles** `@advpipe/contracts` and `@advpipe/engine` (electron-vite `externalizeDeps.exclude`) and the worker is a second entry of the same build (`out/main/worker.js`, from `engine/dist/src/worker.js`), so the app has no workspace symlinks at run time; what stays external is exactly the app package's `dependencies`: the Agent SDK, its two peers and zod (one copy). Everything else (react, radix, dompurify, our own packages) is a dev dependency, bundled into the renderer or main. `assets/prompts` is copied to `out/main/prompts` by the build (a vite plugin), where `findPromptsDir` finds it. `unpackedPath()` (`engine/src/core/asar.ts`) turns an `app.asar` path into `app.asar.unpacked`: main uses it for the worker entry, `findClaudeBinary` for the SDK binary, and the worker now passes that path to the SDK as `pathToClaudeCodeExecutable`. Scripts: `npm run pack` (unpacked, no installer), `npm run dist` (installers), `npm run test:packaged` (`e2e/packaged.smoke.ts` through `playwright.packaged.config.ts`: the packaged app opens a repo and its preflight finds the bundled Claude Code; a detached worker started from `app.asar.unpacked` with an empty home and no credentials spawns the unpacked binary and gets "Not logged in" back, which costs nothing). CI: a `package` job per OS runs `npm run dist`, the smoke tests and uploads the installers; `check` now also runs `npm audit --omit=dev --audit-level=high`. Root `README.md` written.)*
 
 **Build:** electron-builder config for Linux (AppImage + deb), macOS (dmg), Windows (nsis); `asarUnpack`
 for the SDK's native binary and `worker.js`; launch smoke test of the **packaged** app (S5 for real);
@@ -252,7 +254,7 @@ original README); update `docs/VERSIONS.md`.
 was and wasn't checked.
 
 **Done when:** a person can download the installer, open a repo, and run a Basic run without touching a
-terminal.
+terminal. *(Not yet true: advpipe has no sign-in screen, so a person who has never used Claude Code must log in once from a terminal. See the M12 summary's questions for the owner.)*
 
 ---
 

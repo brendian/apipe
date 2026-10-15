@@ -17,5 +17,38 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run check:prompts
+      - run: npm audit --omit=dev --audit-level=high
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:e2e
+
+  # M12: the installers, built on the OS they are for (the Agent SDK's native Claude Code binary is a
+  # per-platform optional dependency, so a package can only be built where it will run).
+  package:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds: signing and notarising are the owner's to set up
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run dist
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npx playwright test -c playwright.packaged.config.ts
+      - if: runner.os != 'Linux'
+        run: npx playwright test -c playwright.packaged.config.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: advpipe-${{ matrix.os }}
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: error
