@@ -3,7 +3,7 @@
 Takes one work item and drives it through adversarial author/critic agent pairs with deterministic
 gates, leaving a git branch ready for human review. This repo is a **ground-up rewrite of the Python
 `advpipe`** as an **Electron + TypeScript desktop app**: UI-first, **no operating CLI**, same pipeline,
-same on-disk formats. **Status: M0 (foundations and spikes), M1 (contracts and core data) and M2 (git and gates) done; the next milestone is M3.**
+same on-disk formats. **Status: M0 (foundations and spikes), M1 (contracts and core data), M2 (git and gates) and M3 (runner and stages) done; the next milestone is M4.**
 
 Everything an agent needs is in `docs/`. **Start at `docs/README.md`.**
 

@@ -1,3 +1,4 @@
+import { Config } from '@advpipe/contracts';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,4 +28,25 @@ export function makeTargetRepo(): string {
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'baseline');
   return dir;
+}
+
+/** The default config with test-friendly gates: only `node --test`, a $5 budget. */
+export function testConfig(
+  overrides: { gates?: Partial<Config['gates']>; limits?: Partial<Config['limits']> } = {},
+): Config {
+  return Config.parse({
+    gates: {
+      test: [process.execPath, '--test'],
+      types: [],
+      lint: [],
+      security: [],
+      ...overrides.gates,
+    },
+    limits: { budget_usd_per_task: 5.0, ...overrides.limits },
+  });
+}
+
+/** A developer's own ANTHROPIC_API_KEY must not turn on the Console-credits warning. */
+export function scrubEnv(): void {
+  delete process.env['ANTHROPIC_API_KEY'];
 }

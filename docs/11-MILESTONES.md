@@ -40,7 +40,7 @@ done and trusted *before* any UI exists. Do not start M7 until M6 is green.
 
 ---
 
-## M0 · Foundations and spikes  ✔ done 2026-10-15 (S3 and S6-online not run: need the owner's go-ahead; run before M12)
+## M0 · Foundations and spikes  ✔ done 2026-10-15 (S3 run later, 2026-10-15, with the owner's go-ahead; S6-online not run: run before M12)
 
 **Read:** 01, 04 §1/§11, 06 §10, 09 §3, 10 §4.
 
@@ -109,7 +109,7 @@ without `keepChanges` and with a deleted worktree; `slugify` cases; unique-branc
 creations pick distinct branches** (the lock); gate cases including timeout and a missing tool. **Start the
 Windows CI job here.**
 
-## M3 · Runner and stages
+## M3 · Runner and stages  ✔ done 2026-10-15 (S3 real call run afterwards: the stream matches what `SdkAgentRunner` reads)
 
 **Read:** 02 §3, §7–§10, §12; 06 (all); 07 (all); `runner.py stages.py`; `test_stages, test_test_defects`.
 
@@ -118,7 +118,7 @@ S3/S4 results applied), `FakeAgentRunner` and all builders, `Context`, `callAgen
 usage notes, limit handling, cut-off note), `extractJson`/`parseModel`/`callJsonAgent`/`callCritic`/
 `parseAuthorResponse`, every prompt builder (07), `testFileGuard`, `checkedFindings` (scan policy),
 `stageGates`, `adversarialStage` (incl. `testFixPass`), `reviewStage`, `singleReviewStage`, `arbiterStage`,
-`finalAuthorPass`, `blockingOpenQuestions` use.
+`finalAuthorPass`, `blockingOpenQuestions` use. *(`bypassQuestions` itself moved to M5: it needs `answers.ts`'s limits.)*
 
 **Tests:** prompts contain exactly what 07 says and nothing from the author's reply in critic prompts;
 every guard; disputes/arbiter routing; JSON retry; the usage-limit raise from inside concurrent

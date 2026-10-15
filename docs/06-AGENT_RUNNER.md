@@ -184,7 +184,7 @@ members that current CLIs never emit**. Consequences:
 - A real subscription login will most likely show `apiKeySource: 'none'` — which tells us it is **not
   an API key** but not that it *is* a subscription (could be Bedrock/Vertex/a bearer token). The
   fallback "a rate-limit event arrived ⇒ subscription" is therefore the working signal, and `unknown`
-  is correct until one arrives. **⚠ spike S3** records what a subscription login actually sends.
+  is correct until one arrives. **Spike S3 (run): a subscription login sends `apiKeySource: 'none'` plus a `rate_limit_event`**, so the fallback is the working signal (`docs/VERSIONS.md`).
 - Don't change the detection order. Do consider treating `'none'` + no `ANTHROPIC_API_KEY` env as "not
   Console" for the *warning* (i.e. don't warn), which the order above already does (it returns
   `unknown` and `unknown` never warns).
@@ -201,7 +201,7 @@ when the worker's signal fires). When aborted mid-call the SDK stops the child C
 (done, offline)**: on abort the async iterator **throws** (`Error: Claude Code process aborted by user`,
 class name minified) about 2 s after `abort()`, and the child process is gone afterwards (no orphan). So the
 runner **catches any throw while `signal.aborted` is true and rethrows the engine's `Cancelled`** (decide by the
-signal, not by the error's class or text), never `UsageLimitReached` or a plain `is_error` result.
+signal, not by the error's class or text), never `UsageLimitReached` or a plain `is_error` result. `callAgent` also checks the signal before and after every call (the engine's `throwIfCancelled`), and the gates take the same signal.
 
 ## 8. Packaging the SDK
 

@@ -1,4 +1,4 @@
-// The public API the host imports (docs/04 §4). Grows milestone by milestone; M1 is the core data, M2 adds git and gates.
+// The public API the host imports (docs/04 §4). Grows milestone by milestone: M1 core data, M2 git and gates, M3 runner and stages.
 export * from './core/budget.js';
 export * from './core/config.js';
 export * from './core/events.js';
@@ -11,3 +11,11 @@ export * from './core/gitlock.js';
 export * from './core/which.js';
 export * from './core/workspace.js';
 export * from './core/gates.js';
+// M3: runner and stages.
+export * from './core/cancel.js';
+export * from './core/decisions.js';
+export * from './runner/types.js';
+export * from './runner/roles.js';
+export * from './runner/sdk.js';
+export * from './runner/fake.js';
+export * from './stages/index.js';

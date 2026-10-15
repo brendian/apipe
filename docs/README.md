@@ -1,7 +1,7 @@
 # Documentation index
 
 Everything needed to rebuild `advpipe` as a TypeScript desktop app, without access to the author and
-without guessing. **Status: docs complete; M0, M1 and M2 (git and gates) built. Next: [11-MILESTONES](11-MILESTONES.md) → M3.**
+without guessing. **Status: docs complete; M0, M1, M2 (git and gates) and M3 (runner and stages) built. Next: [11-MILESTONES](11-MILESTONES.md) → M4.**
 
 ## Reading order
 

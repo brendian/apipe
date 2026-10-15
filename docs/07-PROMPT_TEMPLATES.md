@@ -13,7 +13,7 @@ There are two kinds of prompt text:
    output and *no* author text), so keep wording and section order exactly. Where this file and
    `stages.py` differ, `stages.py` wins.
 
-Conventions: `fence(text, lang='')` = `` ```lang\n<text with trailing whitespace trimmed>\n``` ``.
+Conventions: every `JSON.stringify(x, null, 2)` below is `jsonAscii(x)` (`core/runlog.ts`): Python's `json.dumps(indent=2)` escapes non-ASCII as `\uXXXX`, and the prompts are ported as they were. `fence(text, lang='')` = `` ```lang\n<text with trailing whitespace trimmed>\n``` ``.
 `ctx.taskMd` = the current `task.md` (with its Answers section). `gateCommands(config, names)` =
 one line per **configured** gate `- <name>: \`<argv joined by spaces>\``, or `- (none configured)`.
 `formatGates(results)` is in [02-DOMAIN_SPEC](02-DOMAIN_SPEC.md) §10.
@@ -159,7 +159,7 @@ Implement the change now. Do not modify anything under: {paths}. This is round 1
 
 Blocking findings to address:
 
-{fence(JSON.stringify({verdict:'FAIL', findings: findings.map(dump)}, null, 2), 'json')}
+{fence(jsonAscii({verdict:'FAIL', findings: findings.map(dump)}), 'json')}
 
 # Latest gate output
 

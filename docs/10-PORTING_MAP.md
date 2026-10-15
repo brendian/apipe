@@ -20,10 +20,10 @@ is how the next session knows where things stand.
 | `workspace.py` | `engine/src/core/workspace.ts` + `git.ts` + `gitlock.ts` | M2 | ☑ | same git commands (plus `commit.gpgsign=false`, `-z` listings so odd file names work); repo-wide git lock (04 §3.4); `slugify`/`BRANCH_PREFIX` live in `contracts` (M1) |
 | `runlog.py` | `engine/src/core/runlog.ts` + `report.ts` (`renderReport`) | M1 | ☑ | temp+rename writes; lock; `renderReport` verbatim except the three command strings (02 §19). Sync fs on purpose. `listRuns` returns `{runs, unreadable}` instead of throwing on one bad run |
 | `answers.py` | `engine/src/core/answers.ts` | M5 | ☐ | |
-| `decisions.py` | `engine/src/core/decisions.ts` | M5 | ☐ | |
+| `decisions.py` | `engine/src/core/decisions.ts` | M5 | ◐ | only `DecisionNeeded` (the signal `checkedFindings` raises) exists so far; the rest is M5 |
 | `control.py` | `engine/src/core/control.ts` | M6 | ☐ | detach = `spawn` + lock; cancel = file; clean as-is |
-| `runner.py` | `engine/src/runner/{types,roles,sdk,fake}.ts` | M3 | ☐ | 06 |
-| `stages.py` | `engine/src/stages/*.ts` | M3–M4 | ☐ | split by concern (prompts, json, guards, adversarial, review, arbiter) |
+| `runner.py` | `engine/src/runner/{types,roles,sdk,fake}.ts` | M3 | ☑ | 06. `Cancelled` lives in `core/cancel.ts`; `SdkAgentRunner` is unrun against the real API (spike S3 still pending) |
+| `stages.py` | `engine/src/stages/*.ts` | M3–M4 | ◐ | split into `context, calls (callAgent + JSON), prompts, guards, adversarial, review, arbiter`. Done in M3 except `bypassQuestions` (+ its `MAX_ANSWER_CHARS` constants), which waits for `answers.ts` in M5. `blockingOpenQuestions` was M1 (`contracts`) |
 | `orchestrator.py` | `engine/src/orchestrator/*.ts` | M4–M5 | ☐ | one class, split into files by stage; keep method names |
 | `cli.py` | **(deleted)**; its behaviour is the host's IPC handlers + UI | M7+ | – | `_summary`/`status` text feeds the worker's end-of-run line only; `gates` command deferred |
 | `__main__.py` | `engine/src/worker.ts` (hidden) | M6 | ☐ | |
@@ -57,9 +57,9 @@ All under `tests/` in the Python tree. TS tests live beside the module under `pa
 | `test_gates.py` | `engine/test/gates.test.ts` | ☑ |
 | `test_workspace.py` | `engine/test/workspace.test.ts` | ☑ + git-lock concurrency; slugify cases are in `contracts/test/text.test.ts` |
 | `test_events.py` | `engine/test/events.test.ts` | printed-vs-event equality → "echo" rule |
-| `test_stages.py`, `test_orchestrator.py` | `engine/test/stages.test.ts`, `orchestrator.test.ts` | |
+| `test_stages.py`, `test_orchestrator.py` | `engine/test/stages.test.ts`, `orchestrator.test.ts` | `test_stages` ☑ (M3, plus prompts/guards/review/arbiter cases from the orchestrator tests that need no orchestrator, in `stages.test.ts` + `adversarial.test.ts`); `test_orchestrator` ☐ (M4) |
 | `test_tests_level.py`, `test_solo.py` | `engine/test/tests-level.test.ts`, `solo.test.ts` | |
-| `test_test_defects.py` | `engine/test/test-defects.test.ts` | |
+| `test_test_defects.py` | `engine/test/adversarial.test.ts` ("test defects") | ☑ driven at stage level (no orchestrator yet); the `Orchestrator` end-to-end variants come with M4 |
 | `test_resume.py`, `test_parallel.py` | `engine/test/resume.test.ts`, `parallel.test.ts` | parallel now also in `process.test.ts` (real workers) |
 | `test_answers.py`, `test_bypass.py` | `engine/test/answers.test.ts`, `bypass.test.ts` | |
 | `test_answers_cli.py`, `test_cli.py` | N/A as CLI; the *behaviours* move to `app/main` handler tests and `engine` tests | exit codes N/A; refusals and messages still tested |
