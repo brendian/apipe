@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {#- No inline styles or eval from htmx, so the Content-Security-Policy can stay strict.
+      Swap 422 too: that's a form coming back with its problems marked. And 409: an action
+      that isn't valid for the run any more (it moved on since the page was drawn). #}
+  <meta name="htmx-config"
+        content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "selfRequestsOnly": true, "historyCacheSize": 0, "responseHandling": [{"code": "204", "swap": false}, {"code": "[23]..", "swap": true}, {"code": "422", "swap": true}, {"code": "409", "swap": true}, {"code": "[45]..", "swap": false, "error": true}]}'>
+  <title>{% block title %}advpipe{% endblock %} · {{ repo_name }}</title>
+  <link rel="icon" href="data:,">{# no favicon request #}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/theme.js"></script>{# not deferred: sets the theme before the page is drawn #}
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx-ext-sse.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+{#- htmx sends the CSRF token with every request it makes. #}
+<body hx-headers='{{ {"X-CSRF-Token": csrf_token} | tojson }}'>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="/">advpipe</a>
+    <span class="repo" title="{{ repo_name }}">{{ repo_name }}</span>
+    <nav aria-label="Main">
+      {% for label, path in nav %}
+      <a href="{{ path }}"{% if path == nav_current %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    {#- Shown by app.js, so it never appears where it can't work. #}
+    <button type="button" class="theme-toggle" id="theme-toggle" hidden>Theme: system</button>
+  </header>
+  <main id="content" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

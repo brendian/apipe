@@ -1,0 +1,87 @@
+{#- The editor form. Swapped out whole when a save comes back with problems (status 422). #}
+<form id="item-form" class="item-form" method="post" action="{{ '/items/new' if new else '/items/save' }}"
+      hx-post="{{ '/items/new' if new else '/items/save' }}" hx-target="this" hx-swap="outerHTML">
+  {%- if errors %}
+  <div class="form-errors" role="alert">
+    {%- for e in errors %}<p>{{ e }}</p>{% endfor %}
+  </div>
+  {%- endif %}
+  {%- if new %}
+  <label class="field"><span>File name</span>
+    <input name="path" value="{{ draft.rel }}" required maxlength="300" list="item-folders"
+           placeholder="server/s03-stock.md" autocomplete="off" spellcheck="false">
+    <small>Inside <code>{{ items_dir }}/</code>. Folders are made as needed, and <code>.md</code> is added if you leave it off.</small>
+  </label>
+  <datalist id="item-folders">{% for f in folders %}<option value="{{ f }}/"></option>{% endfor %}</datalist>
+  {%- else %}
+  <input type="hidden" name="path" value="{{ draft.rel }}">
+  <input type="hidden" name="base" value="{{ draft.base }}">
+  {%- endif %}
+  <div class="field-row">
+    <label class="field"><span>Branch name <span class="muted">(optional)</span></span>
+      <input name="name" value="{{ draft.name }}" maxlength="300" autocomplete="off" placeholder="s03-stock">
+      <small>Runs make the branch <code>advpipe/&lt;name&gt;</code>. Empty: made from the first line.</small>
+    </label>
+    <label class="field"><span>Pipeline config <span class="muted">(optional)</span></span>
+      <input name="config" value="{{ draft.config }}" maxlength="300" list="config-files" autocomplete="off" placeholder="pipeline.toml">
+      <small>A <code>.toml</code> file, relative to the repo root. Empty: <code>pipeline.toml</code> or the defaults.</small>
+    </label>
+    <datalist id="config-files">{% for f in config_files %}<option value="{{ f }}"></option>{% endfor %}</datalist>
+  </div>
+  <fieldset class="checking">
+    <legend>How runs of this item go <span class="muted">(optional: left empty, they follow the config)</span></legend>
+    <div class="field-row">
+      <label class="field"><span>Level</span>
+        <select name="level">
+          <option value="inherit">Inherit (from the config)</option>
+          {%- for lv in level_options %}
+          <option value="{{ lv.value }}"{% if draft.setting("level") == lv.value %} selected{% endif %}>{{ lv.number }}. {{ lv.label }}</option>
+          {%- endfor %}
+        </select>
+        <small>How much checking: 1 (Basic) to 5 (Full). The New run dialog's slider can still override it.</small>
+      </label>
+      <label class="field"><span>Security scan</span>
+        <select name="security_scan">
+          <option value="inherit">Level default (on at Full only)</option>
+          <option value="yes"{% if draft.setting("security_scan") == "yes" %} selected{% endif %}>On</option>
+          <option value="no"{% if draft.setting("security_scan") == "no" %} selected{% endif %}>Off</option>
+        </select>
+      </label>
+      <label class="field"><span>If the scan finds issues</span>
+        <select name="scan_failures">
+          <option value="inherit">Inherit (ask me, unless the config says otherwise)</option>
+          <option value="ask"{% if draft.setting("scan_failures") == "ask" %} selected{% endif %}>Ask me</option>
+          <option value="ignore"{% if draft.setting("scan_failures") == "ignore" %} selected{% endif %}>Ignore</option>
+          <option value="block"{% if draft.setting("scan_failures") == "block" %} selected{% endif %}>Block</option>
+        </select>
+        <small>Only when the scan is on below Full.</small>
+      </label>
+      <label class="field"><span>Don't stop for questions</span>
+        <select name="bypass_questions">
+          <option value="inherit">Inherit (ask me, unless the config says otherwise)</option>
+          <option value="yes"{% if draft.setting("bypass_questions") == "yes" %} selected{% endif %}>Yes: let the agent decide</option>
+          <option value="no"{% if draft.setting("bypass_questions") == "no" %} selected{% endif %}>No: ask me</option>
+        </select>
+      </label>
+    </div>
+  </fieldset>
+  <div class="editor">
+    <label class="field"><span>Work item <span class="muted">(markdown)</span></span>
+      <textarea name="body" rows="22" required spellcheck="true"
+                placeholder="What to build or fix, and how you'll know it's done.">{{ draft.body }}</textarea>
+    </label>
+    <div class="preview-pane">
+      <div class="field-label">Preview and checks</div>
+      {#- Own hx-target and hx-swap: without them this inherits the form's, and every
+          keystroke would replace the whole form with the preview. #}
+      <div id="item-preview" hx-post="/items/preview" hx-trigger="input delay:400ms from:#item-form"
+           hx-include="#item-form" hx-target="this" hx-swap="innerHTML" aria-live="polite">{% include "_item_preview.html" %}</div>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="button primary">{{ "Create" if new else "Save" }}</button>
+    <button type="submit" class="button" name="then" value="run" title="Save, then check the budget and start a run">{{ "Create" if new else "Save" }} &amp; run…</button>
+    <a href="/items">Cancel</a>
+    <span class="muted small">Saving writes the file only. Nothing is committed.</span>
+  </div>
+</form>

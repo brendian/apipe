@@ -1,0 +1,26 @@
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#ffffff, #14161a);
+  --text: light-dark(#1b1f24, #e6e8eb);
+  --accent: light-dark(#1f5fbf, #7aa7f0);
+  --focus-ring: light-dark(#1f5fbf, #7aa7f0);
+  --font-ui: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

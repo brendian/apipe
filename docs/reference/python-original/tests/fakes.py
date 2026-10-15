@@ -1,0 +1,341 @@
+"""FakeAgentRunner with scripted responses per role, so the orchestrator runs without API calls."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from advpipe.models import LoginKind, RateLimitSnapshot
+from advpipe.runner import AgentRequest, AgentResult, Role, UsageLimitReached
+
+# A scripted step: a literal reply, or a function that may edit req.cwd and returns the reply.
+# A step may also be (or return) an AgentResult, to script a login and usage snapshots (`said`),
+# and a function may raise UsageLimitReached, as the SDK runner does (`limit_hit`).
+Step = str | AgentResult | Callable[[AgentRequest], "str | AgentResult"]
+
+
+class FakeAgentRunner:
+    def __init__(
+        self,
+        scripts: dict[Role, list[Step]],
+        cost_per_call: float = 0.01,
+        *,
+        name: str = "",
+        events: list[tuple[str, Role]] | None = None,
+        auth: LoginKind = "unknown",
+    ) -> None:
+        self.scripts = {role: list(steps) for role, steps in scripts.items()}
+        self.cost_per_call = cost_per_call
+        self.calls: list[AgentRequest] = []
+        self.name = name
+        self.events = events if events is not None else []
+        self.auth = auth  # the login every plain reply says it ran under
+
+    async def run(self, request: AgentRequest) -> AgentResult:
+        await asyncio.sleep(0)  # yield, so concurrent runs really interleave
+        self.calls.append(request)
+        self.events.append((self.name, request.role))
+        queue = self.scripts.get(request.role, [])
+        if not queue:
+            raise AssertionError(f"unexpected call to {request.role.value}")
+        step = queue.pop(0)
+        out = step(request) if callable(step) else step
+        if isinstance(out, AgentResult):
+            return out
+        return AgentResult(text=out, cost_usd=self.cost_per_call, auth=self.auth)
+
+    def calls_for(self, role: Role) -> list[AgentRequest]:
+        return [c for c in self.calls if c.role == role]
+
+
+# --------------------------------------------------------------------------- builders
+
+
+def writes(files: dict[str, str], reply: str = "done") -> Step:
+    """A step that writes files (relative to the worktree) and replies with ``reply``."""
+
+    def step(req: AgentRequest) -> str:
+        for rel, content in files.items():
+            path = req.cwd / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        return reply
+
+    return step
+
+
+def said(
+    text: str,
+    *,
+    auth: LoginKind = "unknown",
+    snapshots: tuple[RateLimitSnapshot, ...] = (),
+    cost: float = 0.01,
+) -> AgentResult:
+    """A reply that also says which login it ran under and what usage Claude reported."""
+    return AgentResult(text=text, cost_usd=cost, auth=auth, rate_limits=snapshots)
+
+
+def limit_hit(
+    *,
+    window: str | None = "five_hour",
+    billing: bool = False,
+    cost: float = 0.02,
+    auth: LoginKind = "subscription",
+    files: dict[str, str] | None = None,
+    resets_in_s: int = 3600,
+) -> Step:
+    """A step that writes ``files`` (partial work), then hits a usage limit, as the SDK runner
+    raises it: a rejected subscription window, or (``billing``) the Console balance running out."""
+
+    def step(req: AgentRequest) -> str:
+        for rel, content in (files or {}).items():
+            path = req.cwd / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        snap = None
+        if window and not billing:
+            snap = RateLimitSnapshot(
+                window=window,
+                status="rejected",
+                utilization=1.0,
+                resets_at=datetime.now(UTC) + timedelta(seconds=resets_in_s),
+            )
+        raise UsageLimitReached(
+            "a limit was reached",
+            billing=billing,
+            snapshot=snap,
+            cost_usd=cost,
+            auth="console" if billing else auth,
+            rate_limits=(snap,) if snap else (),
+        )
+
+    return step
+
+
+def snap(
+    window: str = "five_hour",
+    status: str = "allowed",
+    utilization: float | None = 0.62,
+    resets_in_s: int | None = 3600,
+) -> RateLimitSnapshot:
+    return RateLimitSnapshot(
+        window=window,
+        status=status,  # type: ignore[arg-type]
+        utilization=utilization,
+        resets_at=datetime.now(UTC) + timedelta(seconds=resets_in_s) if resets_in_s else None,
+    )
+
+
+def finding(
+    fid: str = "F1",
+    *,
+    severity: str = "blocking",
+    category: str = "correctness",
+    file: str | None = "mathutils/core.py",
+    line: int | None = 10,
+    criterion: str | None = "AC2",
+    claim: str = "something is wrong",
+) -> dict[str, Any]:
+    return {
+        "id": fid,
+        "severity": severity,
+        "category": category,
+        "file": file,
+        "line": line,
+        "criterion": criterion,
+        "claim": claim,
+        "evidence": "see code",
+    }
+
+
+def verdict_pass(*minor: dict[str, Any]) -> str:
+    return json.dumps({"verdict": "PASS", "findings": list(minor)})
+
+
+def verdict_fail(*findings: dict[str, Any]) -> str:
+    return json.dumps({"verdict": "FAIL", "findings": list(findings)})
+
+
+def author_response(**actions: tuple[str, str]) -> str:
+    """author_response(**{"C1-F1": ("disputed", "AC3 allows it")})"""
+    return json.dumps(
+        {
+            "responses": [
+                {"finding_id": fid, "action": action, "note": text, "reason": text}
+                for fid, (action, text) in actions.items()
+            ]
+        }
+    )
+
+
+def rulings(**decisions: str) -> str:
+    return json.dumps(
+        {"rulings": [{"finding_id": f, "decision": d, "reason": "r"} for f, d in decisions.items()]}
+    )
+
+
+# --------------------------------------------------------------------------- sample content
+
+TASK_MD = """# Task: Add clamp
+
+## Goal
+Add clamp(x, lo, hi).
+
+## Acceptance criteria
+- [ ] AC1: `from mathutils import clamp` works.
+- [ ] AC2: returns x within [lo, hi], lo below, hi above.
+- [ ] AC3: lo > hi raises ValueError.
+
+## Constraints
+- None
+
+## In scope
+- mathutils/
+
+## Out of scope
+- None
+
+## Open questions
+- None
+"""
+
+TASK_MD_BLOCKING = TASK_MD.replace(
+    "## Open questions\n- None", "## Open questions\n- BLOCKING: should lo > hi swap or raise?"
+)
+
+TEST_CLAMP = """import pytest
+
+from mathutils import clamp
+
+
+def test_within() -> None:  # AC2
+    assert clamp(5, 0, 10) == 5
+
+
+def test_below_and_above() -> None:  # AC2
+    assert clamp(-1, 0, 10) == 0
+    assert clamp(11, 0, 10) == 10
+
+
+def test_lo_gt_hi_raises() -> None:  # AC3
+    with pytest.raises(ValueError):
+        clamp(1, 10, 0)
+"""
+
+TRIVIAL_TEST = """def test_nothing() -> None:
+    assert True
+"""
+
+CORE_HEADER = '''"""Core numeric helpers."""
+
+from collections.abc import Sequence
+
+
+def safe_div(a: float, b: float, default: float = 0.0) -> float:
+    """Return a / b, or ``default`` if b is zero."""
+    if b == 0:
+        return default
+    return a / b
+
+
+def mean(values: Sequence[float]) -> float:
+    """Return the arithmetic mean of ``values``."""
+    if not values:
+        raise ValueError("values must not be empty")
+    return sum(values) / len(values)
+'''
+
+CLAMP_OK = '''
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    """Return x restricted to [lo, hi]."""
+    if lo > hi:
+        raise ValueError("lo must be <= hi")
+    return max(lo, min(x, hi))
+'''
+
+CLAMP_WRONG = '''
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    """Return x restricted to [lo, hi]."""
+    return x
+'''
+
+INIT = '''"""Small numeric helpers."""
+
+from mathutils.core import clamp, mean, safe_div
+
+__all__ = ["clamp", "mean", "safe_div"]
+'''
+
+IMPL_OK = {"mathutils/core.py": CORE_HEADER + CLAMP_OK, "mathutils/__init__.py": INIT}
+IMPL_WRONG = {"mathutils/core.py": CORE_HEADER + CLAMP_WRONG, "mathutils/__init__.py": INIT}
+
+
+def interrupt(req: AgentRequest) -> str:
+    """A step that simulates Ctrl-C arriving while this agent runs."""
+    raise asyncio.CancelledError
+
+
+TEST_SIGN = """from mathutils.sign import sign
+
+
+def test_sign() -> None:  # AC1
+    assert sign(-3) == -1
+    assert sign(0) == 0
+    assert sign(2) == 1
+"""
+
+SIGN_IMPL = '''"""Sign helper."""
+
+
+def sign(x: float) -> int:
+    """Return -1, 0 or 1 according to the sign of x."""
+    return (x > 0) - (x < 0)
+'''
+
+
+def sign_scripts() -> dict[Role, list[Step]]:
+    """A second, independent work item: add mathutils.sign."""
+    return {
+        Role.SPEC_WRITER: [writes({"task.md": TASK_MD.replace("clamp", "sign")})],
+        Role.TEST_AUTHOR: [writes({"tests/test_sign.py": TEST_SIGN})],
+        Role.TEST_CRITIC: [verdict_pass()],
+        Role.CODER: [writes({"mathutils/sign.py": SIGN_IMPL})],
+        Role.CODE_CRITIC: [verdict_pass()],
+        Role.STANDARDS_REVIEWER: [verdict_pass()],
+        Role.SECURITY_REVIEWER: [verdict_pass()],
+    }
+
+
+def happy_scripts() -> dict[Role, list[Step]]:
+    """Every stage passes on the first round."""
+    return {
+        Role.SPEC_WRITER: [writes({"task.md": TASK_MD}, "wrote task.md")],
+        Role.TEST_AUTHOR: [writes({"tests/test_clamp.py": TEST_CLAMP}, "AUTHOR-REASONING tests")],
+        Role.TEST_CRITIC: [verdict_pass()],
+        Role.CODER: [writes(IMPL_OK, "AUTHOR-REASONING code")],
+        Role.CODE_CRITIC: [verdict_pass()],
+        Role.STANDARDS_REVIEWER: [verdict_pass()],
+        Role.SECURITY_REVIEWER: [verdict_pass()],
+    }
+
+
+# A test with a wrong expected value: it can never pass, even with a correct clamp.
+TEST_CLAMP_DEFECT = TEST_CLAMP.replace(
+    "assert clamp(5, 0, 10) == 5", "assert clamp(5, 0, 10) == 6  # defect"
+)
+
+
+def defect_finding(fid: str = "F1") -> dict[str, Any]:
+    return finding(
+        fid,
+        category="test-defect",
+        file="tests/test_clamp.py",
+        line=7,
+        criterion="AC2",
+        claim="test_within expects 6, but AC2 says clamp(5, 0, 10) returns 5",
+    )

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-types/node",
+    "tsBuildInfoFile": "dist-types/node/.tsbuildinfo",
+    "emitDeclarationOnly": true,
+    "types": ["node"]
+  },
+  "include": ["src/main", "src/preload", "electron.vite.config.ts", "test"],
+  "references": [{ "path": "../contracts" }]
+}

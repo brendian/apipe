@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+test-results/
+playwright-report/
+*.tsbuildinfo
+# build-time copy of assets/prompts (scripts/copy-prompts.mjs)
+packages/engine/prompts/
+dist-types/

@@ -1,0 +1,16 @@
+node_modules
+dist
+out
+build
+docs
+assets
+.claude
+fixtures
+packages/engine/prompts
+packages/*/test-results
+test-results
+playwright-report
+package-lock.json
+CLAUDE.md
+packages/engine/test/golden
+dist-types

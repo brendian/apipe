@@ -1,0 +1,35 @@
+{
+  "name": "advpipe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "advpipe: adversarial multi-agent coding pipeline, as a desktop app",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build:libs && npm run dev -w @advpipe/app",
+    "build": "npm run build:libs && npm run build -w @advpipe/app",
+    "build:libs": "node scripts/copy-prompts.mjs && tsc -b packages/contracts packages/engine",
+    "typecheck": "tsc -b",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "check:prompts": "node scripts/check-prompts-sync.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.5",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.4"
+  }
+}

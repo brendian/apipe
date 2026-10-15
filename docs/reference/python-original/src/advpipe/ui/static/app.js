@@ -1,0 +1,118 @@
+// advpipe UI: the only hand-written script. Loaded from /static so the Content-Security-Policy
+// can forbid inline scripts.
+(function () {
+  "use strict";
+
+  // Copy buttons: <button data-copy="ID"> copies the text of the element with that id.
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("button[data-copy]");
+    if (!button) return;
+    var source = document.getElementById(button.getAttribute("data-copy"));
+    if (!source) return;
+    var text = source.textContent;
+    var done = function (label) {
+      button.textContent = label;
+      window.setTimeout(function () { button.textContent = "Copy"; }, 1500);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(
+        function () { done("Copied"); },
+        function () { selectText(source); done("Press Ctrl+C"); }
+      );
+    } else {
+      selectText(source);
+      done("Press Ctrl+C");
+    }
+  });
+
+  function selectText(element) {
+    var range = document.createRange();
+    range.selectNodeContents(element);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  // Live refreshes replace the header and timeline. Keep every <details> panel the reader
+  // opened or closed the way they left it (panels have stable ids), instead of the defaults.
+  // Restored on afterSwap, which fires for each swapped element (out-of-band ones too) before
+  // the page is painted, so panels don't flicker.
+  var panels = null;
+  document.addEventListener("htmx:beforeSwap", function () {
+    panels = {};
+    document.querySelectorAll("details[id]").forEach(function (d) { panels[d.id] = d.open; });
+  });
+  document.addEventListener("htmx:afterSwap", function (event) {
+    if (!panels) return;
+    var root = event.target;
+    var found = root.matches("details[id]") ? [root] : [];
+    root.querySelectorAll("details[id]").forEach(function (d) { found.push(d); });
+    found.forEach(function (d) {
+      if (Object.prototype.hasOwnProperty.call(panels, d.id)) d.open = panels[d.id];
+    });
+  });
+  document.addEventListener("htmx:afterSettle", function () { panels = null; });
+
+  // The level slider (New run dialog): a screen reader says "Tests", not "3", and the slider
+  // follows the level the chosen work item (or the config) asks for until the person moves it
+  // themselves. Without this script everything still works: the summary says which level the
+  // run gets and why.
+  function levelSlider() {
+    return document.querySelector("input[type=range][name=level]");
+  }
+  function sayLevel(slider) {
+    var option = document.querySelector("#level-ticks option[value='" + slider.value + "']");
+    if (option) slider.setAttribute("aria-valuetext", option.getAttribute("label"));
+  }
+  var slider = levelSlider();
+  if (slider) {
+    sayLevel(slider);
+    slider.addEventListener("input", function (event) {
+      if (event.isTrusted) slider.setAttribute("data-touched", "yes");
+      sayLevel(slider);
+    });
+  }
+  document.addEventListener("htmx:afterSettle", function (event) {
+    var card = document.querySelector("#run-summary .level-card[data-inherited-level]");
+    var current = levelSlider();
+    if (!card || !current || current.getAttribute("data-touched") === "yes") return;
+    var inherited = card.getAttribute("data-inherited-level");
+    if (inherited && current.value !== inherited) {
+      current.value = inherited;
+      sayLevel(current);
+      current.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+
+  // Theme button: system setting -> dark -> light -> system. The choice is kept in this
+  // browser's storage; theme.js applies it on the next page before it's drawn.
+  var THEMES = ["system", "dark", "light"];
+  var themeButton = document.getElementById("theme-toggle");
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") || "system";
+  }
+  function showTheme() {
+    var theme = currentTheme();
+    themeButton.textContent = "Theme: " + theme;
+    themeButton.setAttribute("aria-label", "Colour theme: " + theme + ". Change it");
+  }
+  if (themeButton) {
+    themeButton.hidden = false;
+    showTheme();
+    themeButton.addEventListener("click", function () {
+      var next = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+      if (next === "system") {
+        document.documentElement.removeAttribute("data-theme");
+      } else {
+        document.documentElement.setAttribute("data-theme", next);
+      }
+      try {
+        if (next === "system") window.localStorage.removeItem("advpipe-theme");
+        else window.localStorage.setItem("advpipe-theme", next);
+      } catch (e) {
+        // Storage blocked: the choice lasts for this page only.
+      }
+      showTheme();
+    });
+  }
+})();
