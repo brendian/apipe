@@ -88,6 +88,20 @@ export function specRevisionPrompt(
   );
 }
 
+/** The spec writer's pass over its own task.md, because a person reviewed it and left notes. */
+export function specReviewPrompt(workItem: string, previousTaskMd: string, note: string): string {
+  const previous = previousTaskMd.trim() || '(missing)';
+  return (
+    `Work item: ${workItem}\n\n` +
+    'The target repository is your current working directory.\n\n' +
+    'You wrote the task.md below. The person who started the run read it and left notes.\n\n' +
+    `# Your previous task.md\n\n${fence(previous, 'markdown')}\n\n` +
+    `# The person's notes\n\n${fence(note.trim())}\n\n` +
+    'Revise the spec: write the complete task.md again at the repository root, with the ' +
+    "person's notes taken into account."
+  );
+}
+
 // ── solo agent ──────────────────────────────────────────────────────────────────────────────────
 
 function soloTail(ctx: Context): string {
@@ -201,6 +215,16 @@ export const fixPassNote = (n: number): string =>
 export function fixPassExtra(note: string): string {
   if (!note.trim()) return '';
   return `\n\nA person asked for this pass and left you this note:\n\n${fence(note.trim())}`;
+}
+
+/** An author's pass because a person read the step's work and left notes (verbatim). */
+export function reviewPassPrompt(n: number, note: string, gates: GateResult[]): string {
+  return (
+    `# Review pass ${n}: a person read your work and asked for changes\n\n` +
+    `The person who started the run left these notes:\n\n${fence(note.trim())}` +
+    `\n\n# Latest gate output\n\n${formatGates(gates)}\n\n` +
+    'Make the changes the notes ask for, re-run the gates, then reply with AuthorResponse JSON only.'
+  );
 }
 
 /** The test author's one pass at tests the code critic called defective. */

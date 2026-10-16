@@ -49,7 +49,7 @@ export const Decision = z.object({
   usage: RateLimitSnapshot.nullable().default(null), // usage_limit: the window that ran out
   billing: z.boolean().default(false), // usage_limit: the Console credit balance ran out
   choice: z.string().default(''), // set by the person
-  note: z.string().default(''), // red_checks + fix: the person's note, verbatim
+  note: z.string().default(''), // red_checks + fix, review_step + revise: the person's note, verbatim
   decided_at: IsoDate.nullable().default(null),
   applied: z.boolean().default(false), // the choice has been acted on
 });
@@ -87,6 +87,8 @@ export const RunState = z.object({
   security_scan: z.boolean().nullable().default(null), // null: an old run, so the level's default
   scan_policy: ScanPolicy.default('ask'),
   bypass_questions: z.boolean().default(false),
+  // Levels 3-5: stop for a person's review after the spec, the tests and the code.
+  review_pauses: z.boolean().default(false),
   decisions: z.array(Decision).default([]),
   fix_passes: z.number().int().default(0),
   ended_by: z.enum(['', 'takeover', 'stop', 'finish']).default(''),

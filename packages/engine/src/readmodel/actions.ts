@@ -149,6 +149,7 @@ export async function answerAction(
 export type DecideInput = {
   choice: string;
   note?: string | undefined;
+  edited?: string | undefined;
   confirm?: boolean | undefined;
 };
 
@@ -167,7 +168,9 @@ export async function decideAction(
   if (ENDING.has(choice) && input.confirm !== true) {
     throw new ActionError('Not done: that needs confirming first.');
   }
-  await refusing('Not sent: ', () => decide(repo, runId, choice, (input.note ?? '').trim()));
+  await refusing('Not sent: ', () =>
+    decide(repo, runId, choice, (input.note ?? '').trim(), input.edited ?? ''),
+  );
   if (ENDING.has(choice)) return { runId, resumed: false };
   try {
     await resumeRun(repo, runId, opts);

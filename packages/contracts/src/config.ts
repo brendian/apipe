@@ -57,6 +57,7 @@ export const Pipeline = z.strictObject({
   security_scan: z.boolean().nullable().default(null), // null: the level's default
   scan_failures: ScanPolicy.default('ask'), // what a failing scan means below full
   bypass_questions: z.boolean().default(false),
+  review_pauses: z.boolean().default(false), // levels 3-5: stop for a person's review after each step
 });
 
 export const Config = z.strictObject({

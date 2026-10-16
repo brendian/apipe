@@ -38,7 +38,7 @@ const Level     = z.enum(['basic','reviewer','tests','adversarial','full']);
 const ScanPolicy= z.enum(['ask','ignore','block']);
 const Stage     = z.enum(['INIT','SOLO','SPEC','TESTS','CODE','REVIEW','ARBITER','FINAL_GATES','DONE']);
 const Status    = z.enum(['running','complete','needs_human','budget_exceeded','error']);
-const DecisionKind = z.enum(['red_checks','scan_hits','usage_limit','spec_cap']);
+const DecisionKind = z.enum(['red_checks','scan_hits','usage_limit','spec_cap','review_step']);
 const LoginKind = z.enum(['console','subscription','unknown']);
 const RUN_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/;      // plus: must not contain '..'
 const QUESTION_ID_RE = /^Q[1-9][0-9]{0,3}$/;
@@ -47,6 +47,7 @@ const DECISION_CHOICES = {
   scan_hits:   ['ignore','block'],
   usage_limit: ['retry','finish'],
   spec_cap:    ['begin','stop'],
+  review_step: ['approve','revise','stop'],   // added after the port: see 02 §11a
 } as const;
 const RESUMABLE = new Set(['running','error','budget_exceeded']);
 ```
@@ -164,6 +165,7 @@ const RunState = z.object({
   security_scan: z.boolean().nullable().default(null),     // null = an old run: the level's default
   scan_policy: ScanPolicy.default('ask'),
   bypass_questions: z.boolean().default(false),
+  review_pauses: z.boolean().default(false),   // levels 3-5: stop for a person's review (02 §11a)
   decisions: z.array(Decision).default([]),
   fix_passes: z.number().int().default(0),
   ended_by: z.enum(['','takeover','stop','finish']).default(''),
@@ -289,7 +291,7 @@ const StartRequest = z.discriminatedUnion('command', [
   z.object({ command: z.literal('run'), run_id, repo, work_item: z.string(), work_item_file: z.string().default(''),
              name: z.string().nullable(), config_path: z.string().nullable(), keep_worktree: z.boolean().default(false),
              // the already-merged effective settings; the worker applies them verbatim
-             level: Level, security_scan: z.boolean().nullable(), scan_failures: ScanPolicy, bypass_questions: z.boolean(),
+             level: Level, security_scan: z.boolean().nullable(), scan_failures: ScanPolicy, bypass_questions: z.boolean(), review_pauses: z.boolean().default(false),
              budget_usd: z.number().positive().nullable() }),
   z.object({ command: z.literal('resume'), run_id, repo, budget_usd: z.number().positive().nullable(), locked_for_me: z.literal(true) }),
 ]);

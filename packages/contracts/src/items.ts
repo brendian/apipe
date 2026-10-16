@@ -117,6 +117,7 @@ export const RunForm = z.strictObject({
   scan: z.string().max(20).default('default'),
   scan_failures: z.string().max(20).default(''),
   bypass: z.boolean().nullable().default(null),
+  review: z.boolean().default(false),
   keep_worktree: z.boolean().default(false),
 });
 export type RunForm = z.infer<typeof RunForm>;
@@ -143,6 +144,7 @@ export const RunPlan = z.strictObject({
   inherited_failures: z.enum(['ask', 'ignore', 'block']),
   bypass: z.boolean(),
   inherited_bypass: z.boolean(),
+  review: z.boolean(),
   agents: z.number().int(),
   calls: z.tuple([z.number().int(), z.number().int()]),
   dropped: z.array(z.string()),

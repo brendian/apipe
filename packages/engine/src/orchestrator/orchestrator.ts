@@ -35,7 +35,7 @@ import {
 import { Budget, BudgetExceeded } from '../core/budget.js';
 import { Cancelled } from '../core/cancel.js';
 import type { Explicit } from '../core/config.js';
-import { DecisionNeeded, pendingChoice, take } from '../core/decisions.js';
+import { DecisionNeeded, pendingChoice, SPEC_EDIT_FILE, take } from '../core/decisions.js';
 import { emit, gateStatuses } from '../core/events.js';
 import { gatesLine, runGates } from '../core/gates.js';
 import { renderReport } from '../core/report.js';
@@ -56,6 +56,7 @@ import {
   fixPassNote,
   NO_ARBITER_NOTE,
   noteScannerSkipped,
+  reviewPassPrompt,
   reviewStage,
   REVIEW_PATHS,
   runGateNames,
@@ -63,6 +64,7 @@ import {
   soloPrompt,
   soloRevisionPrompt,
   specPrompt,
+  specReviewPrompt,
   specRevisionPrompt,
   type StageKind,
 } from '../stages/index.js';
@@ -157,6 +159,7 @@ export class Orchestrator {
       security_scan: pipeline.security_scan,
       scan_policy: pipeline.scan_failures,
       bypass_questions: pipeline.bypass_questions,
+      review_pauses: pipeline.review_pauses,
     });
     state.security_scan = scanOn(state); // the level's default, when not set
     return state;
@@ -190,7 +193,8 @@ export class Orchestrator {
     if (
       p.level !== state.level ||
       scan !== scanOn(state) ||
-      p.bypass_questions !== state.bypass_questions
+      p.bypass_questions !== state.bypass_questions ||
+      p.review_pauses !== state.review_pauses
     ) {
       cfg = {
         ...cfg,
@@ -199,6 +203,7 @@ export class Orchestrator {
           level: state.level,
           security_scan: scanOn(state),
           bypass_questions: state.bypass_questions,
+          review_pauses: state.review_pauses,
         },
       };
     }
@@ -419,15 +424,23 @@ export class Orchestrator {
 
       if (!('tests' in done)) {
         this.enter('TESTS');
-        if (!(await this.stage(ctx, 'test-author', 'tests'))) return;
+        if (!(await this.stage(ctx, 'test-author', 'tests'))) {
+          await this.snapshotPatch(ctx, 'TESTS');
+          return;
+        }
         done['tests'] = await ws.commit('advpipe: tests');
       }
+      if (!(await this.reviewStep(ctx, 'TESTS', 'test-author', 'tests'))) return;
 
       if (!('code' in done)) {
         this.enter('CODE');
-        if (!(await this.stage(ctx, 'coder', 'code'))) return;
+        if (!(await this.stage(ctx, 'coder', 'code'))) {
+          await this.snapshotPatch(ctx, 'CODE');
+          return;
+        }
         done['code'] = await ws.commit('advpipe: implementation');
       }
+      if (!(await this.reviewStep(ctx, 'CODE', 'coder', 'code'))) return;
     }
 
     if (shape.review !== 'none' && !('review' in done)) {
@@ -467,6 +480,98 @@ export class Orchestrator {
       await ws.remove();
       state.worktree_removed = true;
     }
+  }
+
+  // ------------------------------------------------------------------------ REVIEW PAUSES
+
+  /**
+   * Write what a step changed to `human-review/<stage>.patch`, for the person's review (tests: the
+   * change since the spec; code: since the tests). Only runs that pause for review keep it.
+   */
+  private async snapshotPatch(ctx: Context, stage: 'TESTS' | 'CODE'): Promise<void> {
+    if (!this.state.review_pauses) return;
+    const base = this.state.commits[stage === 'TESTS' ? COMMIT_KEYS.SPEC : COMMIT_KEYS.TESTS];
+    if (base === undefined) return;
+    const patch = await ctx.workspace.diff(base);
+    this.runlog.writeText(`human-review/${stage.toLowerCase()}.patch`, patch);
+  }
+
+  /** The latest review pause at `stage`, if there is one. */
+  private reviewDecision(stage: Stage): Decision | undefined {
+    return [...this.state.decisions]
+      .reverse()
+      .find((d) => d.kind === 'review_step' && d.stage === stage);
+  }
+
+  /**
+   * The pause after the tests or the code (finished, red or green: red ones stopped at the checks
+   * already, and the person's fix pass brought them here). The person approves, or sends notes for
+   * one more author pass, after which the run stops here again. False = the run stops.
+   */
+  private async reviewStep(
+    ctx: Context,
+    stage: 'TESTS' | 'CODE',
+    author: Role,
+    kind: 'tests' | 'code',
+  ): Promise<boolean> {
+    const state = this.state;
+    if (!state.review_pauses) return true;
+    const d = this.reviewDecision(stage);
+    if (d !== undefined && d.choice === 'approve') {
+      if (!d.applied) {
+        d.applied = true;
+        this.emit('decision', `you approved ${stage.toLowerCase()}`, {
+          decision_kind: 'review_step',
+          choice: 'approve',
+          decision_stage: stage,
+        });
+      }
+      return true;
+    }
+    if (d !== undefined && d.choice === 'revise' && !d.applied) {
+      const number = state.decisions.filter(
+        (x) => x.kind === 'review_step' && x.choice === 'revise',
+      ).length;
+      const cap = this.config.limits.max_fix_passes;
+      this.emit('round', `review pass ${number}: you asked for changes to the ${kind}`, { cap });
+      const remaining = await finalAuthorPass(ctx, author, [], kind, {
+        stage: BUDGET_STAGE[kind] as string,
+        prompt: reviewPassPrompt(number, d.note, ctx.lastGates),
+        rdir: `review-pass-${number}-${kind}`,
+      });
+      d.applied = true;
+      if (remaining.length > 0) {
+        this.askRed(remaining, `${stage}, after your review notes`, this.fixer(author), '', {
+          stage,
+        });
+        await this.snapshotPatch(ctx, stage);
+        return false;
+      }
+      state.commits[kind] = await ctx.workspace.commit(
+        `advpipe: ${kind} (revised after your review)`,
+      );
+    }
+    await this.snapshotPatch(ctx, stage);
+    const what = stage === 'TESTS' ? 'The tests are written and committed' : 'The code is written';
+    this.ask(
+      'review_step',
+      [],
+      `${what}. Look at what changed, then approve it to carry on, or send notes for one more ` +
+        'pass by the author.',
+      { stage },
+    );
+    return false;
+  }
+
+  /** The spec has been written: stop for the person to read and edit it before it's committed. */
+  private askSpecReview(): void {
+    this.ask(
+      'review_step',
+      [],
+      'The spec is written. Read it and edit it if you like, then approve it to carry on, or ' +
+        'send notes for the spec writer to revise it.',
+      { stage: 'SPEC' },
+    );
   }
 
   private fixer(author: Role): string {
@@ -559,6 +664,11 @@ export class Orchestrator {
     this.enter('SPEC');
     const begin = take(state, 'spec_cap', 'begin', 'SPEC');
     if (begin !== null) return this.beginSpec(ctx, begin);
+    const approved = take(state, 'review_step', 'approve', 'SPEC');
+    if (approved !== null) return this.approveSpec(ctx, approved);
+    // A person read the spec and left notes: the first pass revises it with them.
+    const revise = take(state, 'review_step', 'revise', 'SPEC');
+    let reviewNote = revise?.note ?? '';
     for (;;) {
       const number = state.spec_passes + 1;
       // The person chose Bypass for some questions: the spec writer answers them itself, once,
@@ -566,7 +676,12 @@ export class Orchestrator {
       await this.bypass(ctx, number);
       const given = unappliedQuestions(state);
       let prompt: string;
-      if (given.length > 0) {
+      if (reviewNote) {
+        state.round = number;
+        this.emit('round', `spec pass ${number}/${cap}: revising task.md with your notes`, { cap });
+        prompt = specReviewPrompt(state.work_item, this.readRunTaskMd(), reviewNote);
+        reviewNote = '';
+      } else if (given.length > 0) {
         // The worktree's task.md was wiped when the run was reopened: the previous spec is the
         // copy in the run directory.
         const previousMd = this.readRunTaskMd();
@@ -584,6 +699,7 @@ export class Orchestrator {
       }
       const result = await callAgent(ctx, 'spec-writer', prompt, 'spec');
       state.spec_passes = number;
+      if (revise) revise.applied = true;
       for (const q of given) q.applied = true;
       this.runlog.writeText(
         number === 1 ? 'spec/author.txt' : `spec/pass-${number}/author.txt`,
@@ -618,9 +734,31 @@ export class Orchestrator {
         writeFileSync(taskPath, taskMd);
         this.setTaskMd(ctx, taskMd, pdir);
       }
+      if (state.review_pauses) {
+        this.askSpecReview();
+        return false;
+      }
       state.commits[COMMIT_KEYS.SPEC] = await ws.commit('advpipe: spec (task.md)');
       return true;
     }
+  }
+
+  /** The person approved the spec, perhaps edited: their version is the spec. */
+  private async approveSpec(ctx: Context, d: Decision): Promise<boolean> {
+    const ws = ctx.workspace;
+    const edit = this.runlog.path(SPEC_EDIT_FILE);
+    const text = existsSync(edit) ? readFileSync(edit, 'utf-8') : this.readRunTaskMd();
+    const taskMd = withAnswersSection(text, this.state.questions);
+    writeFileSync(path.join(ws.path, 'task.md'), taskMd);
+    this.setTaskMd(ctx, taskMd, `spec/pass-${this.state.spec_passes}`);
+    d.applied = true;
+    this.emit('decision', 'you approved the spec', {
+      decision_kind: 'review_step',
+      choice: 'approve',
+      decision_stage: 'SPEC',
+    });
+    this.state.commits[COMMIT_KEYS.SPEC] = await ws.commit('advpipe: spec (task.md)');
+    return true;
   }
 
   private readRunTaskMd(): string {

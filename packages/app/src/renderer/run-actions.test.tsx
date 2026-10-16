@@ -45,6 +45,8 @@ const decisionView = (over: Partial<DecisionViewData> = {}): DecisionViewData =>
   retry_warning: '',
   add_key: '',
   add_label: '',
+  review_task_md: null,
+  review_diff: null,
   ...over,
 });
 

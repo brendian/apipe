@@ -38,7 +38,13 @@ export type Stage = z.infer<typeof Stage>;
 export const Status = z.enum(['running', 'complete', 'needs_human', 'budget_exceeded', 'error']);
 export type Status = z.infer<typeof Status>;
 
-export const DecisionKind = z.enum(['red_checks', 'scan_hits', 'usage_limit', 'spec_cap']);
+export const DecisionKind = z.enum([
+  'red_checks',
+  'scan_hits',
+  'usage_limit',
+  'spec_cap',
+  'review_step',
+]);
 export type DecisionKind = z.infer<typeof DecisionKind>;
 
 export const LoginKind = z.enum(['console', 'subscription', 'unknown']);
@@ -72,6 +78,7 @@ export const DECISION_CHOICES = {
   scan_hits: ['ignore', 'block'],
   usage_limit: ['retry', 'finish'],
   spec_cap: ['begin', 'stop'],
+  review_step: ['approve', 'revise', 'stop'],
 } as const satisfies Record<DecisionKind, readonly string[]>;
 
 /** A run in one of these statuses can be resumed (needs_human has its own special cases). */

@@ -216,6 +216,7 @@ export const planOf = (over: Partial<RunPlan> = {}): RunPlan => ({
   inherited_failures: 'ask',
   bypass: false,
   inherited_bypass: false,
+  review: false,
   agents: 4,
   calls: [4, 11],
   dropped: ['No standards review'],

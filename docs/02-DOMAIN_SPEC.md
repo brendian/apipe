@@ -680,6 +680,25 @@ A decision point is `status = needs_human` with `state.decisions` last element o
 `status = needs_human`, `openFindings = findings`, emit `decision` `"<explanation> Decide with: …"`
 `{decision_kind, choice:'asked', decision_stage, choices}`. **The worktree is left exactly as it is.**
 
+### 11a. Review pauses (`review_step`) — not in the Python original
+
+Opt-in per run (New run checkbox; `[pipeline] review_pauses`; `RunState.review_pauses`, never changed).
+Levels 3–5 only (solo levels have no separate steps). After each of SPEC, TESTS and CODE the run stops
+at a `review_step` decision with that stage:
+
+- **SPEC**: after the spec pass and its question handling, *before* `advpipe: spec` is committed. The
+  person may edit `task.md`; `approve` (with the edited text, written to `human-review/spec-edit.md`)
+  makes their version the spec (the Answers section is re-applied by code). `revise` + note: one more
+  spec-writer pass with the note (`specReviewPrompt`), then it stops again.
+- **TESTS / CODE**: after the stage settled and was committed; the diff since the previous step
+  (tests: since the spec; code: since the tests) is in `human-review/<stage>.patch`. `approve` carries
+  on; `revise` + note: one author pass (`reviewPassPrompt`, note verbatim), the stage's checks run, the
+  fix is committed, and the run stops here again. Checks still red → the usual `red_checks` decision.
+- A stage that **fails** already stops at `red_checks`; its panel also shows the diff, and the `fix`
+  note is the person's notes. `stop` ends the run (`ended_by='stop'`).
+
+`revise` passes aren't capped by `max_fix_passes` (a person asks for each), and cost is budgeted as usual.
+
 `askRed(findings, where, fixer, tried?, {stage?})` builds the `red_checks` explanation:
 
 ```

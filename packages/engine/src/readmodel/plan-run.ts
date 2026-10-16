@@ -50,6 +50,7 @@ type Checking = {
   inherited_failures: Failures;
   bypass: boolean;
   inherited_bypass: boolean;
+  review: boolean;
 };
 
 const singleLine = (label: string, value: string): string | null =>
@@ -122,6 +123,7 @@ function howMuchChecking(
     inherited_failures: inheritedFailures,
     bypass: form.bypass ?? inheritedBypass,
     inherited_bypass: inheritedBypass,
+    review: SHAPES[level].solo ? false : form.review || pipeline.review_pauses,
   };
 }
 
@@ -234,6 +236,7 @@ async function compute(
     inherited_failures: checking.inherited_failures,
     bypass: checking.bypass,
     inherited_bypass: checking.inherited_bypass,
+    review: checking.review,
     agents: rolesFor(checking.level).length,
     calls: maxAgentCalls(checking.level, cfg.limits),
     dropped: droppedSafeguards(checking.level, checking.scan),
@@ -242,6 +245,7 @@ async function compute(
       checking.scan ? 'on' : 'off',
       checking.failures,
       checking.bypass ? 'bypass' : 'ask',
+      checking.review ? 'review' : 'auto',
     ].join(';'),
   };
   if (errors.length > 0) return { plan, pending: null };
@@ -262,6 +266,7 @@ async function compute(
       security_scan: scanSet ? checking.scan : null,
       scan_failures: checking.failures,
       bypass_questions: checking.bypass,
+      review_pauses: checking.review,
       budget_usd: budget,
     },
   };

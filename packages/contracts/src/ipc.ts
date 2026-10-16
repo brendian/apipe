@@ -132,6 +132,8 @@ export const IPC_TABLE = {
       runId: RunId,
       choice: z.string().max(20),
       note: z.string().max(16_000).optional(),
+      /** review_step on the spec: the spec text as the person edited it, sent with `approve`. */
+      edited: z.string().max(200_000).optional(),
       /** Only the confirmation page's button sends this; takeover, stop and finish need it. */
       confirm: z.boolean().optional(),
     }),

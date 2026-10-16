@@ -115,6 +115,12 @@ function Summary({
             </ul>
           </>
         ) : null}
+        {plan.review ? (
+          <p>
+            It will <strong>stop for your review</strong> after the spec (you can edit it), the
+            tests and the code.
+          </p>
+        ) : null}
         {plan.bypass ? (
           <Callout tone="warn">
             Blocking questions will be answered by the agent without asking you. It says so in{' '}
@@ -159,6 +165,7 @@ export function NewRun({ item }: { item: string | null }) {
   const [level, setLevel] = useState<number | null>(null);
   const [failures, setFailures] = useState<string | null>(null);
   const [bypass, setBypass] = useState<boolean | null>(null);
+  const [review, setReview] = useState(false);
 
   const [plan, setPlan] = useState<{ key: string; value: RunPlan } | null>(null);
   const [planError, setPlanError] = useState('');
@@ -176,6 +183,7 @@ export function NewRun({ item }: { item: string | null }) {
     scan,
     scan_failures: failures ?? '',
     bypass,
+    review,
     keep_worktree: keep,
   };
   const key = JSON.stringify(form);
@@ -445,6 +453,11 @@ export function NewRun({ item }: { item: string | null }) {
               onChange={(e) => setBypass(e.target.checked)}
             />{' '}
             Don't stop for questions: let the agent decide
+          </label>
+          <label className="choice">
+            <input type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} />{' '}
+            Pause for my review after the spec, the tests and the code
+            <small className="muted"> (only at levels 3 to 5)</small>
           </label>
         </fieldset>
         <details className="advanced">

@@ -63,6 +63,7 @@ export function effectiveConfig(config: Config, request: StartRun): Config {
       security_scan: request.security_scan,
       scan_failures: request.scan_failures,
       bypass_questions: request.bypass_questions,
+      review_pauses: request.review_pauses,
     },
   };
 }

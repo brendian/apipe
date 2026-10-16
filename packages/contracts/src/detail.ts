@@ -102,6 +102,20 @@ export const CHOICE_VIEWS: Readonly<Record<string, ChoiceView>> = {
     confirm: false,
     primary: true,
   },
+  approve: {
+    value: 'approve',
+    label: 'Approve and continue',
+    help: 'Accepts this step as it is (with your edits, for the spec) and carries on to the next one.',
+    confirm: false,
+    primary: true,
+  },
+  revise: {
+    value: 'revise',
+    label: 'Send my notes back',
+    help: 'One more pass by the author with your notes, then it stops here again for you to look.',
+    confirm: false,
+    primary: false,
+  },
   retry: {
     value: 'retry',
     label: 'Try again',
@@ -134,6 +148,7 @@ export const DECISION_TITLES = {
   scan_hits: 'The security scan reported issues',
   usage_limit: 'Paused: a usage limit was reached',
   spec_cap: 'Begin work?',
+  review_step: 'Your review',
 } as const;
 
 // ── the run page ──────────────────────────────────────────────────────────────────────────────
@@ -225,6 +240,10 @@ export const DecisionViewS = z.strictObject({
   retry_warning: z.string(), // usage_limit
   add_key: z.enum(['', 'add_usage', 'add_credits']),
   add_label: z.string(),
+  /** review_step on the spec: the task.md to edit (markdown source). */
+  review_task_md: z.string().nullable(),
+  /** review_step on tests/code, or red_checks there under review pauses: what the step changed. */
+  review_diff: DiffViewS.nullable(),
 });
 export type DecisionViewData = z.infer<typeof DecisionViewS>;
 

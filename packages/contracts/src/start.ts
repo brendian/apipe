@@ -20,6 +20,7 @@ export const StartRun = z.strictObject({
   security_scan: z.boolean().nullable(),
   scan_failures: ScanPolicy,
   bypass_questions: z.boolean(),
+  review_pauses: z.boolean().default(false),
   budget_usd: z.number().positive().nullable(),
 });
 

@@ -343,3 +343,8 @@ The shared critic/reviewer footer, verbatim: *"Find the strongest reasons this f
 criterion in task.md or would break in production. Report only findings you can point to by file and
 line, or by acceptance criterion. Mark each finding blocking or minor. If you find nothing blocking,
 return PASS. Reply with JSON only, matching the Verdict schema."*
+
+## Review-pause prompts (added after the port; no Python original)
+
+- `specReviewPrompt(workItem, previousTaskMd, note)`: the spec writer's pass when a person left notes at the spec review pause: work item, its previous `task.md`, the person's note (fenced, verbatim), "Revise the spec: write the complete task.md again at the repository root, with the person's notes taken into account."
+- `reviewPassPrompt(n, note, gates)`: a test author's or coder's pass after notes at the tests/code review pause: the note (fenced, verbatim), the latest gate output, "Make the changes the notes ask for, re-run the gates, then reply with AuthorResponse JSON only."

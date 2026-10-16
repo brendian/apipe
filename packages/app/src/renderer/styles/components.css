@@ -662,6 +662,8 @@ a.plain {
 }
 
 .preview-pane .markdown {
+  height: 24rem;
+  overflow-y: auto;
   padding: var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -921,4 +923,10 @@ kbd {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-1);
+}
+
+.spec-editor {
+  width: 100%;
+  max-height: 32rem;
+  resize: vertical;
 }

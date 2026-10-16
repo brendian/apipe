@@ -202,6 +202,8 @@ describe('run page', () => {
             retry_warning: h(1),
             add_key: '',
             add_label: '',
+            review_task_md: null,
+            review_diff: null,
           },
           timeline: [
             stepOf({

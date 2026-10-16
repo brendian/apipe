@@ -439,6 +439,7 @@ export const DECISION_TITLE: Record<Decision['kind'], string> = {
   scan_hits: 'The security scan reported issues',
   usage_limit: 'Paused: a usage limit was reached',
   spec_cap: 'Begin work?',
+  review_step: 'Your review',
 };
 
 /** The decisions you made, each a panel in the step where the run stopped. */
@@ -618,7 +619,15 @@ export function decisionView(state: RunState, log: RunLog): DecisionViewData | n
   const d = state.decisions.at(-1);
   if (d === undefined || !awaitingDecision(state)) return null;
   const choices: readonly string[] = DECISION_CHOICES[d.kind];
+  const reviewed = d.kind === 'review_step' || (state.review_pauses && d.kind === 'red_checks');
+  const patch =
+    reviewed && (d.stage === 'TESTS' || d.stage === 'CODE')
+      ? diffOf(log, log.path(`human-review/${d.stage.toLowerCase()}.patch`))
+      : null;
   return {
+    review_task_md:
+      d.kind === 'review_step' && d.stage === 'SPEC' ? readText(log.path('task.md')) : null,
+    review_diff: patch,
     decision: d,
     choices: choices.filter((c) => c in CHOICE_VIEWS),
     pending: d.kind === 'spec_cap' ? pendingQuestions(state) : [],

@@ -277,6 +277,7 @@ One panel, title from `DECISION_TITLES`, the decision's `explanation` (plain tex
 |---|---|---|
 | `red_checks` | The checks are still failing | note box (≤ 8 000, only for fix) · **Another fix pass** ("fix pass N of 3"; disabled with an explanation when `N > max_fix_passes`) · **I'll take over** (confirm page) |
 | `scan_hits` | The security scan reported issues | **Ignore and continue** · **Block** |
+| `review_step` | Your review | spec: editable `task.md`; tests/code: the step's diff (also shown on `red_checks` there when review pauses are on) · notes box · **Approve and continue** · **Send my notes back** (needs a note) · **Stop here** (confirm page) |
 | `spec_cap` | Begin work? | the still-open questions listed · **Begin work** · **Stop here** (confirm page) |
 | `usage_limit` | Paused: a usage limit was reached | the explanation with a fixed link (*Add extra usage* / *Add credits in the Console*, opened in the **system browser** via `shell.openExternal` after an allow-list check of exactly the two constant URLs) · `retryWarning` ("If the limit is still in force, the run will pause again. The limit resets at 14:00.") · **Try again** · **Finish as is** (confirm page) |
 

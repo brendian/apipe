@@ -118,6 +118,12 @@ export function checkSameShape(state: RunState, config: Config, explicit: Explic
         'Start a new run to change it',
     );
   }
+  if (asked.has('review_pauses') && pipeline.review_pauses !== state.review_pauses) {
+    const now = state.review_pauses ? 'stops for your review' : "doesn't stop for your review";
+    throw new NotResumable(
+      `run ${state.run_id} ${now}; a resumed run keeps that. Start a new run to change it`,
+    );
+  }
   const scan = pipeline.security_scan;
   if (asked.has('security_scan') && scan !== null && scan !== scanOn(state)) {
     const now = scanOn(state) ? 'on' : 'off';

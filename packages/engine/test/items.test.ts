@@ -265,7 +265,7 @@ describe('planRun', () => {
       branch: 'advpipe/plain-task',
       calls: [5, 23],
       agents: 6,
-      shown_text: 'adversarial;off;block;ask',
+      shown_text: 'adversarial;off;block;ask;auto',
     });
 
     const rich = await planRun(repo, dir, form({ item: 'rich.md' }));
@@ -276,7 +276,7 @@ describe('planRun', () => {
       scan_source: "the work item's front matter",
       failures: 'ignore',
       bypass: true,
-      shown_text: 'tests;on;ignore;bypass',
+      shown_text: 'tests;on;ignore;bypass;auto',
     });
     expect(rich.dropped).toContain('No standards review');
 
@@ -294,7 +294,7 @@ describe('planRun', () => {
       inherited_failures: 'ignore',
       bypass: false,
       inherited_bypass: true,
-      shown_text: 'full;off;ask;ask',
+      shown_text: 'full;off;ask;ask;auto',
     });
     expect(
       (await planRun(repo, dir, form({ source: 'task', task: 'x', level: 'basic' }))).level,
@@ -363,7 +363,7 @@ describe('starting a run', () => {
     };
     const f = form({ item: 'clamp.md', scan: 'on', bypass: true });
     const plan = await planRun(repo, dir, f);
-    expect(plan.shown_text).toBe('tests;on;ask;bypass');
+    expect(plan.shown_text).toBe('tests;on;ask;bypass;auto');
 
     const stale = (shown: string, budget: string): Promise<unknown> =>
       startNewRun(repo, dir, f, shown, budget, opts);
@@ -393,6 +393,7 @@ describe('starting a run', () => {
       security_scan: true,
       scan_failures: 'ask',
       bypass_questions: true,
+      review_pauses: false,
       budget_usd: 15,
     });
     expect(Config.parse(log.readConfig()).pipeline).toMatchObject({

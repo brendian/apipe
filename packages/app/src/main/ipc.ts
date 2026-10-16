@@ -98,7 +98,7 @@ export interface Deps {
     decideAction(
       repo: string,
       runId: string,
-      input: { choice: string; note?: string; confirm?: boolean },
+      input: { choice: string; note?: string; edited?: string; confirm?: boolean },
     ): Promise<{ runId: string; resumed: boolean }>;
     cleanInfoAction(repo: string, runId: string): Promise<CleanInfoView>;
     cleanAction(
@@ -273,11 +273,12 @@ export function createHandlers(deps: Deps): Handlers {
           ...(bypassAll === undefined ? {} : { bypassAll }),
         }),
       ),
-    'run.decide': ({ runId, choice, note, confirm }, ctx) =>
+    'run.decide': ({ runId, choice, note, edited, confirm }, ctx) =>
       person(() =>
         deps.engine.decideAction(need(ctx), runId, {
           choice,
           ...(note === undefined ? {} : { note }),
+          ...(edited === undefined ? {} : { edited }),
           ...(confirm === undefined ? {} : { confirm }),
         }),
       ),

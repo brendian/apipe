@@ -78,10 +78,11 @@ export async function finalAuthorPass(
   author: Role,
   findings: Finding[],
   kind: StageKind,
-  opts: { note?: string; stage?: string; extra?: string; rdir?: string } = {},
+  opts: { note?: string; stage?: string; extra?: string; rdir?: string; prompt?: string } = {},
 ): Promise<Finding[]> {
   const rdir = opts.rdir || `final-pass-${kind}`;
   const prompt =
+    opts.prompt ??
     authorFindingsPrompt(findings, ctx.lastGates, opts.note ?? ARBITER_NOTE) + (opts.extra ?? '');
   const result = await callAgent(ctx, author, prompt, opts.stage ?? 'arbiter');
   ctx.runlog.writeText(`${rdir}/author.txt`, result.text);

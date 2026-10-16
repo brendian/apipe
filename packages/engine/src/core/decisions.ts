@@ -21,6 +21,8 @@ import { branchExists, Workspace } from './workspace.js';
 // the worktree kept as it was (`Workspace.reopen({ keepChanges: true })`).
 
 export { MAX_NOTE_CHARS };
+/** The spec as a person edited it at the review pause (run directory). */
+export const SPEC_EDIT_FILE = 'human-review/spec-edit.md';
 export const HANDED_OVER_COMMIT = 'advpipe: work in progress, handed over (checks failing)';
 
 /** A decision that can't be recorded; the message is meant for the person deciding. */
@@ -169,6 +171,7 @@ export async function decide(
   runId: string,
   choice: string,
   note = '',
+  edited = '',
 ): Promise<RunState> {
   const root = path.resolve(repo);
   const log = RunLog.forRun(root, runId);
@@ -193,7 +196,23 @@ export async function decide(
         `${pyRepr(picked)} isn't a choice here: choose ${choices.join(' or ')}`,
       );
     }
-    if (note && picked !== 'fix') throw new DecisionError('a note goes with the fix choice only');
+    const noted = picked === 'fix' || (d.kind === 'review_step' && picked === 'revise');
+    if (note && !noted) {
+      throw new DecisionError(
+        d.kind === 'review_step'
+          ? 'a note goes with Send my notes back only'
+          : 'a note goes with the fix choice only',
+      );
+    }
+    if (picked === 'revise' && !note.trim()) {
+      throw new DecisionError('write a note first: it is what the author is asked to change');
+    }
+    if (edited) {
+      if (d.kind !== 'review_step' || d.stage !== 'SPEC' || picked !== 'approve') {
+        throw new DecisionError('only the spec can be edited, and only when you approve it');
+      }
+      if (!edited.trim()) throw new DecisionError('the edited spec is empty');
+    }
     if (note.length > MAX_NOTE_CHARS) {
       throw new DecisionError(
         `the note is ${note.length.toLocaleString('en-US')} characters; keep it under ` +
@@ -211,6 +230,10 @@ export async function decide(
         `run ${runId} can't go on: its branch ${state.branch} no longer exists ` +
           '(cleaned up?). Start a new run instead.',
       );
+    }
+    if (edited) {
+      log.writeText(SPEC_EDIT_FILE, edited);
+      state.notes.push('You edited the spec before approving it; your version is the one used.');
     }
     d.choice = picked;
     d.note = note ? note.trim() : '';
