@@ -1,7 +1,7 @@
 import { query, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { LoginKind, RateLimitSnapshot } from '@advpipe/contracts';
 import { Cancelled } from '../core/cancel.js';
-import { detectLogin, snapshotOf, snapshotsFromUsage } from '../core/usage.js';
+import { detectLogin, snapshotOf, snapshotsFromUsage, type UsageAnswer } from '../core/usage.js';
 import {
   UsageLimitReached,
   type AgentRequest,
@@ -58,6 +58,7 @@ export class SdkAgentRunner implements AgentRunner {
     let result: Extract<SDKMessage, { type: 'result' }> | null = null;
     let keySource: unknown;
     let subscribed = false;
+    let usage: Promise<UsageAnswer | null> | null = null;
     const snapshots: RateLimitSnapshot[] = [];
     let rejected: RateLimitSnapshot | null = null;
     let error: string | null = null;
@@ -68,6 +69,11 @@ export class SdkAgentRunner implements AgentRunner {
       for await (const m of q) {
         if (m.type === 'system' && m.subtype === 'init') {
           keySource = m.apiKeySource;
+          // Asked now, while the process is alive: it closes the moment the result arrives.
+          // Experimental SDK API: any failure just leaves us with the streamed events.
+          usage = q
+            .usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+            .catch(() => null);
         } else if (m.type === 'rate_limit_event') {
           const snap = snapshotOf(m.rate_limit_info);
           snapshots.push(snap);
@@ -81,18 +87,12 @@ export class SdkAgentRunner implements AgentRunner {
           if (texts.length > 0) lastText = texts.join('\n');
         } else if (m.type === 'result') {
           result = m;
-          // The real plan windows (the `/usage` data). Experimental SDK API: any failure just
-          // leaves us with the streamed events.
-          try {
-            const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
-              skipBehaviors: true,
-            });
-            subscribed = typeof usage.subscription_type === 'string';
-            snapshots.unshift(...snapshotsFromUsage(usage));
-          } catch {
-            /* unavailable: keep the streamed events */
-          }
         }
+      }
+      const answer = await usage;
+      if (answer) {
+        subscribed = typeof answer.subscription_type === 'string';
+        snapshots.unshift(...snapshotsFromUsage(answer));
       }
     } catch (e) {
       // An abort makes the iterator throw (spike S4); decide by the signal, not the error's class.
