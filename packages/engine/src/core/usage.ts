@@ -70,6 +70,43 @@ export function snapshotOf(info: RateLimitInfo, now: Date = new Date()): RateLim
   };
 }
 
+/** The part of the SDK's `/usage` answer that is used here (experimental API: read defensively). */
+export type UsageAnswer = {
+  subscription_type?: string | null | undefined;
+  rate_limits_available?: boolean | undefined;
+  rate_limits?: Readonly<Record<string, unknown>> | null | undefined;
+};
+
+const USAGE_WINDOWS = ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet'] as const;
+const WARN_AT = 0.8;
+
+/**
+ * Snapshots from the SDK's `/usage` answer: the real plan windows, percent used and reset time,
+ * available before Claude has reported any change. Empty for API-key logins and on odd shapes.
+ */
+export function snapshotsFromUsage(
+  answer: UsageAnswer,
+  now: Date = new Date(),
+): RateLimitSnapshot[] {
+  if (!answer.rate_limits_available || !answer.rate_limits) return [];
+  const out: RateLimitSnapshot[] = [];
+  for (const window of USAGE_WINDOWS) {
+    const w = answer.rate_limits[window] as
+      { utilization?: unknown; resets_at?: unknown } | null | undefined;
+    if (!w || typeof w.utilization !== 'number' || !Number.isFinite(w.utilization)) continue;
+    const when = typeof w.resets_at === 'string' ? new Date(w.resets_at) : null;
+    const used = w.utilization / 100;
+    out.push({
+      window,
+      status: used >= WARN_AT ? 'allowed_warning' : 'allowed',
+      utilization: used,
+      resets_at: when && !Number.isNaN(when.getTime()) ? when.toISOString() : null,
+      seen_at: now.toISOString(),
+    });
+  }
+  return out;
+}
+
 /** Keep the latest snapshot per window. */
 export function mergeSnapshots(
   into: Record<string, RateLimitSnapshot>,

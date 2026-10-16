@@ -1,7 +1,7 @@
 import { query, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { LoginKind, RateLimitSnapshot } from '@advpipe/contracts';
 import { Cancelled } from '../core/cancel.js';
-import { detectLogin, snapshotOf } from '../core/usage.js';
+import { detectLogin, snapshotOf, snapshotsFromUsage } from '../core/usage.js';
 import {
   UsageLimitReached,
   type AgentRequest,
@@ -57,13 +57,15 @@ export class SdkAgentRunner implements AgentRunner {
     let lastText = '';
     let result: Extract<SDKMessage, { type: 'result' }> | null = null;
     let keySource: unknown;
+    let subscribed = false;
     const snapshots: RateLimitSnapshot[] = [];
     let rejected: RateLimitSnapshot | null = null;
     let error: string | null = null;
     try {
       // The whole stream is read even after a limit shows up: it ends within moments, and its
       // result message says what the call had cost.
-      for await (const m of query({ prompt: req.prompt, options: this.buildOptions(req, abort) })) {
+      const q = query({ prompt: req.prompt, options: this.buildOptions(req, abort) });
+      for await (const m of q) {
         if (m.type === 'system' && m.subtype === 'init') {
           keySource = m.apiKeySource;
         } else if (m.type === 'rate_limit_event') {
@@ -79,6 +81,17 @@ export class SdkAgentRunner implements AgentRunner {
           if (texts.length > 0) lastText = texts.join('\n');
         } else if (m.type === 'result') {
           result = m;
+          // The real plan windows (the `/usage` data). Experimental SDK API: any failure just
+          // leaves us with the streamed events.
+          try {
+            const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
+              skipBehaviors: true,
+            });
+            subscribed = typeof usage.subscription_type === 'string';
+            snapshots.unshift(...snapshotsFromUsage(usage));
+          } catch {
+            /* unavailable: keep the streamed events */
+          }
         }
       }
     } catch (e) {
@@ -90,7 +103,7 @@ export class SdkAgentRunner implements AgentRunner {
     }
     if (req.signal?.aborted) throw new Cancelled();
 
-    const auth: LoginKind = detectLogin(keySource, snapshots.length > 0);
+    const auth: LoginKind = detectLogin(keySource, snapshots.length > 0 || subscribed);
     const cost = result?.total_cost_usd ?? 0;
     const failed = result === null || result.is_error;
     const throttled = result !== null && result.is_error && apiErrorStatus(result) === 429;

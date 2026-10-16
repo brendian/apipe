@@ -26,6 +26,7 @@ import {
   RunLocked,
   RunLog,
   snapshotOf,
+  snapshotsFromUsage,
 } from '../src/index.js';
 
 let repo: string;
@@ -186,6 +187,26 @@ describe('usage', () => {
     expect(detectLogin('none', false, { ANTHROPIC_API_KEY: 'x' })).toBe('console');
     expect(detectLogin('none', false, {})).toBe('unknown');
     expect(detectLogin(undefined, false, {})).toBe('unknown');
+  });
+
+  it('turns the SDK /usage answer into 0-1 snapshots, and nothing for API-key logins', () => {
+    const now = new Date('2026-10-08T00:00:00Z');
+    const snaps = snapshotsFromUsage(
+      {
+        rate_limits_available: true,
+        rate_limits: {
+          five_hour: { utilization: 85, resets_at: '2026-10-08T03:00:00Z' },
+          seven_day: { utilization: 10, resets_at: null },
+          seven_day_opus: null,
+        },
+      },
+      now,
+    );
+    expect(snaps.map((s) => [s.window, s.status, s.utilization])).toEqual([
+      ['five_hour', 'allowed_warning', 0.85],
+      ['seven_day', 'allowed', 0.1],
+    ]);
+    expect(snapshotsFromUsage({ rate_limits_available: false, rate_limits: null })).toEqual([]);
   });
 
   it('keeps only the known fields of a rate-limit event; resetsAt is epoch seconds', () => {
