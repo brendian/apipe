@@ -17,7 +17,7 @@ A short walk-through for someone using the app. The Help page inside the app has
   security = []
   ```
 
-  Without one, the defaults assume a Python project (`pytest`, `mypy`, `ruff`, `semgrep`).
+  Without one, the defaults assume a Node/TypeScript project (`npm test`, `npx tsc --noEmit`, `npx eslint .`, `semgrep`). Set a check to `[]` to skip it.
 
 ## Run a task
 

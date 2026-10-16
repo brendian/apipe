@@ -28,9 +28,9 @@ export type Limits = z.infer<typeof Limits>;
 
 /** Commands run from the worktree root. An empty list means the gate is skipped. */
 export const Gates = z.strictObject({
-  test: z.array(z.string()).default(['pytest', '-q']),
-  types: z.array(z.string()).default(['mypy', '.']),
-  lint: z.array(z.string()).default(['ruff', 'check', '.']),
+  test: z.array(z.string()).default(['npm', 'test']),
+  types: z.array(z.string()).default(['npx', 'tsc', '--noEmit']),
+  lint: z.array(z.string()).default(['npx', 'eslint', '.']),
   security: z.array(z.string()).default(['semgrep', '--error', '--config', 'auto']),
 });
 

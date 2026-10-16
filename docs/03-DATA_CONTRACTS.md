@@ -211,7 +211,7 @@ const Config = z.strictObject({
     max_rounds_spec: pos int =3, max_rounds_tests: pos int =2, max_rounds_code: pos int =3,
     max_turns_per_agent: pos int =40, budget_usd_per_task: pos number =15.0,
     gate_timeout_s: pos int =600, max_fix_passes: pos int =3 }),
-  gates:    z.strictObject({ test: string[] ['pytest','-q'], types: ['mypy','.'], lint: ['ruff','check','.'],
+  gates:    z.strictObject({ test: string[] ['npm','test'], types: ['npx','tsc','--noEmit'], lint: ['npx','eslint','.'],
                              security: ['semgrep','--error','--config','auto'] }),
   paths:    z.strictObject({ tests: string[] ['tests/'], standards_doc: 'CLAUDE.md' }),
   pipeline: z.strictObject({ level: Level|1..5 → name ='full', security_scan: boolean|null =null,
